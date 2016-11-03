@@ -1,0 +1,11 @@
+{
+	"certDir" : "/path/to/your/aws/certs/directory/",
+	"keyPath" : "private.pem.key",
+	"certPath" : "certificate.pem.crt",
+	"caPath" : "root-CA.crt",
+	"clientId" : "BBBTI",
+	"region" : "us-east-1",
+	"port" : 8883,
+	"host" : "a23op339u3ex9t.iot.us-east-1.amazonaws.com",
+	"debug" : false
+}
