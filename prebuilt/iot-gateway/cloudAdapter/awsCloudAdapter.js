@@ -164,19 +164,18 @@ function AwsCloudAdapter() {
 		}
 		nwkInfo.devices = devices.slice();
 
-		var reported = nwkInfo;
 		var nwkInfoThing = 'ti_iot_' + nwkInfo.ext_addr + '_network';
 		/* If the network thing isn't registered yet, then register it before sending the update */
 		if (awsCloudAdapterInstance.registered[nwkInfoThing] != 1) {
 			thingShadows.register(nwkInfoThing, { ignoreDeltas : false, persistentSubscribe : false });
 			/* Amazon requires a delay between Thing registration and its first update */
 			setTimeout (function() {
-				thingShadows['update'](nwkInfoThing, { state : { reported }});
+				thingShadows['update'](nwkInfoThing, { state : { reported : nwkInfo }});
 			}, 5000);
 			awsCloudAdapterInstance.registered[nwkInfoThing] = 1;
 		}
 		else {
-			thingShadows['update'](nwkInfoThing, { state : { reported }});
+			thingShadows['update'](nwkInfoThing, { state : { reported : nwkInfo }});
 		}
 	}
 
@@ -186,20 +185,19 @@ function AwsCloudAdapter() {
 		}
 		
 		var devInfoThing = 'ti_iot_' + nwkExtAddr + '_' + devInfo.ext_addr;
-		var reported = devInfo;
 		/* If the device thing ins't registered yet, then register it before sending the update */
 		if (awsCloudAdapterInstance.registered[devInfoThing] != 1) {
 			thingShadows.register(devInfoThing, { ignoreDeltas : false, persistentSubscribe : false });
 			/* Amazon requires a delay between Thing registration and its first update */
 			setTimeout (function() {
 				/* Set desired to null in order to remove any toggleLED requests */
-				thingShadows['update'](devInfoThing, { state : { desired: null, reported }});
+				thingShadows['update'](devInfoThing, { state : { desired : null, reported : devInfo }});
 			}, 5000);
 			awsCloudAdapterInstance.registered[devInfoThing] = 1;
 		}	
 		else {
 			/* Set desired to null in order to remove any toggleLED requests */
-			thingShadows['update'](devInfoThing, { state : { desired: null, reported }});
+			thingShadows['update'](devInfoThing, { state : { desired : null, reported : devInfo }});
 		}
 	}
 }
