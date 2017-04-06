@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
  *****************************************************************************/
 #ifndef SMGSS_H
 #define SMGSS_H
@@ -74,8 +74,8 @@ extern "C"
      - Command ID - [Smsgs_cmdIds_configReq](@ref Smsgs_cmdIds) (1 byte)
      - Frame Control field - Smsgs_dataFields (16 bits) - tells the sensor
      what to report in the Sensor Data Message.
-     - Reporting Interval - in millseconds (32 bits) - how often to report, 0
-     means to turn off automated reporting, but will force the sensor device
+     - Reporting Interval - in millseconds (32 bits) - how often to report, 0 
+     means to turn off automated reporting, but will force the sensor device 
      to send the Sensor Data message once.
      - Polling Interval - in millseconds (32 bits) - If the sensor device is
      a sleep device, this tells the device how often to poll its parent for
@@ -88,10 +88,10 @@ extern "C"
      - Frame Control field - Smsgs_dataFields (16 bits) - tells the collector
      what fields are supported by this device (this only includes the bits set
      in the request message).
-     - Reporting Interval - in millseconds (32 bits) - how often to report, 0
+     - Reporting Interval - in millseconds (32 bits) - how often to report, 0 
      means to turn off reporting.
      - Polling Interval - in millseconds (32 bits) - If the sensor device is
-     a sleep device, this tells how often this device will poll its parent.
+     a sleep device, this tells how often this device will poll its parent. 
      A value of 0 means that the device doesn't sleep.
  <BR>
  The <b>Sensor Data Message</b> is defined as:
@@ -100,7 +100,7 @@ extern "C"
      what fields are included in this message.
      - Data Fields - The length of this field is determined by what data fields
      are included.  The order of the data fields are determined by the bit
-     position of the Frame Control field (low bit first).  For example, if the
+     position of the Frame Control field (low bit first).  For example, if the 
      frame control field has Smsgs_dataFields_tempSensor and
      Smsgs_dataFields_lightSensor set, then the Temp Sensor field is first,
      followed by the light sensor field.
@@ -112,13 +112,13 @@ extern "C"
       integer part of temperature in Deg C (-256 .. +255)
  <BR>
  The <b>Light Sensor Field</b> is defined as:
-    - Raw Sensor Data - (uint16_6) raw data read out of the OPT2001 light
+    - Raw Sensor Data - (uint16_6) raw data read out of the OPT2001 light 
     sensor.
  <BR>
  The <b>Humidity Sensor Field</b> is defined as:
-    - Raw Temp Sensor Data - (uint16_t) - raw temperature data from the
+    - Raw Temp Sensor Data - (uint16_t) - raw temperature data from the 
     Texas Instruments HCD1000 humidity sensor.
-    - Raw Humidity Sensor Data - (uint16_t) - raw humidity data from the
+    - Raw Humidity Sensor Data - (uint16_t) - raw humidity data from the 
     Texas Instruments HCD1000 humidity sensor.
  <BR>
  The <b>Message Statistics Field</b> is defined as:
@@ -154,7 +154,7 @@ extern "C"
      3 - MAC, 4 - TIRTOS
  <BR>
  The <b>Config Settings Field</b> is defined as:
-     - Reporting Interval - in millseconds (32 bits) - how often to report, 0
+     - Reporting Interval - in millseconds (32 bits) - how often to report, 0 
      means reporting is off.
      - Polling Interval - in millseconds (32 bits) - If the sensor device is
      a sleep device, this states how often the device polls its parent for
@@ -184,6 +184,12 @@ extern "C"
 #define SMSGS_SENSOR_LIGHT_LEN 2
 /*! Length of the humiditySensor portion of the sensor data message */
 #define SMSGS_SENSOR_HUMIDITY_LEN 4
+/*! Length of the pressureSensor portion of the sensor data message */
+#define SMSGS_SENSOR_PRESSURE_LEN 8
+/*! Length of the motionSensor portion of the sensor data message */
+#define SMSGS_SENSOR_MOTION_LEN 1
+/*! Length of the batteryVoltageSensor portion of the sensor data message */
+#define SMSGS_SENSOR_BATTERY_LEN 4
 /*! Length of the messageStatistics portion of the sensor data message */
 #define SMSGS_SENSOR_MSG_STATS_LEN 36
 /*! Length of the configSettings portion of the sensor data message */
@@ -212,7 +218,9 @@ extern "C"
     /* Toggle LED message, sent from the collector to the sensor */
     Smsgs_cmdIds_toggleLedReq = 6,
     /* Toggle LED response msg, sent from the sensor to the collector */
-    Smsgs_cmdIds_toggleLedRsp = 7
+    Smsgs_cmdIds_toggleLedRsp = 7,
+	/* new data type for ramp sensor data */
+    Smsgs_cmdIds_rampdata = 8
  } Smsgs_cmdIds_t;
 
 /*!
@@ -233,9 +241,12 @@ typedef enum
     Smsgs_dataFields_msgStats = 0x0008,
     /*! Config Settings */
     Smsgs_dataFields_configSettings = 0x0010,
-#ifdef SENSOR_TAG_SUPPORT
-	Smsgs_dataFields_pressureSensor = 0x0020,
-#endif
+    /*! Pressure Sensor */
+    Smsgs_dataFields_pressureSensor = 0x0020,
+    /*! Motion Sensor */
+    Smsgs_dataFields_motionSensor = 0x0040,
+    /*! Battery Sensor */
+    Smsgs_dataFields_batteryVoltageSensor = 0x0080
 } Smsgs_dataFields_t;
 
 /*!
@@ -358,21 +369,6 @@ typedef struct _Smsgs_lightsensorfield_t
     uint16_t rawData;
 } Smsgs_lightSensorField_t;
 
-
-#ifdef SENSOR_TAG_SUPPORT
-/*!
- Pressure Sensor Field
- */
-typedef struct _Smsgs_pressuresensorfield_t
-{
-	/*! Temperature value read out of the BMP280 pressure sensor */
-	uint32_t tempValue;
-
-	/*! Pressure value read out of the BMP280 pressure sensor */
-    uint32_t pressureValue;
-} Smsgs_pressureSensorField_t;
-#endif // SENSOR_TAG_SUPPORT
-
 /*!
  Humidity Sensor Field
  */
@@ -383,6 +379,36 @@ typedef struct _Smsgs_humiditysensorfield_t
     /*! Raw Humidity Sensor Data from the TI HCD1000 humidity sensor. */
     uint16_t humidity;
 } Smsgs_humiditySensorField_t;
+
+/*!
+ Pressure Sensor Field
+ */
+typedef struct _Smsgs_pressuresensorfield_t
+{
+    /*! Temperature value read out of the BMP280 pressure sensor */
+    uint32_t tempValue;
+
+    /*! Pressure value read out of the BMP280 pressure sensor */
+    uint32_t pressureValue;
+} Smsgs_pressureSensorField_t;
+
+/*!
+ Motion Sensor Field
+ */
+typedef struct _Smsgs_motionsensorfield_t
+{
+    /* Motion flag. */
+    bool isMotion;
+} Smsgs_motionSensorField_t;
+
+/*!
+ Battery Voltage Sensor Field
+ */
+typedef struct _Smsgs_batterysensorfield_t
+{
+    /* battery voltage value */
+    uint32_t voltageValue;
+}Smsgs_batterySensorField_t;
 
 /*!
  Message Statistics Field
@@ -493,13 +519,21 @@ typedef struct _Smsgs_sensormsg_t
      Smsgs_dataFields_configSettings is set in frameControl.
      */
     Smsgs_configSettingsField_t configSettings;
-#ifdef SENSOR_TAG_SUPPORT
     /*!
-         Configuration Settings field - valid only if
-         Smsgs_dataFields_configSettings is set in frameControl.
-         */
+        Pressure Sensor field - valid only if
+        Smsgs_dataFields_pressureSensor is set in frameControl.
+     */
     Smsgs_pressureSensorField_t pressureSensor;
-#endif
+    /*!
+        Motion Sensor field - valid only if
+        Smsgs_dataFields_motionSensor is set in frameControl.
+     */
+    Smsgs_motionSensorField_t motionSensor;
+    /*!
+        Battery Voltage Sensor field - valid only if
+        Smsgs_dataFields_batteryVoltageSensor is set in frameControl.
+     */
+    Smsgs_batterySensorField_t batterySensor;
 } Smsgs_sensorMsg_t;
 
 

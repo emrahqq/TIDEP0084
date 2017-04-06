@@ -39,8 +39,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
 *****************************************************************************/
 
 /******************************************************************************
@@ -1267,14 +1267,14 @@ void APP_main(void)
     LOG_printf( LOG_ALWAYS, "    Minor: %d\n", MT_DEVICE_version_info.minor     );
     LOG_printf( LOG_ALWAYS, "    Maint: %d\n", MT_DEVICE_version_info.maint     );
 
-    fprintf( stderr, "Found Mac Co-Processor Version info is:\n");
-    fprintf( stderr, "Transport: %d\n", MT_DEVICE_version_info.transport );
-    fprintf( stderr, "  Product: %d\n", MT_DEVICE_version_info.product   );
-    fprintf( stderr, "    Major: %d\n", MT_DEVICE_version_info.major     );
-    fprintf( stderr, "    Minor: %d\n", MT_DEVICE_version_info.minor     );
-    fprintf( stderr, "    Maint: %d\n", MT_DEVICE_version_info.maint     );
-    fprintf( stderr, "----------------------------------------\n");
-    fprintf( stderr, "Start the gateway application\n");
+    fprintf( stdout, "Found Mac Co-Processor Version info is:\n");
+    fprintf( stdout, "Transport: %d\n", MT_DEVICE_version_info.transport );
+    fprintf( stdout, "  Product: %d\n", MT_DEVICE_version_info.product   );
+    fprintf( stdout, "    Major: %d\n", MT_DEVICE_version_info.major     );
+    fprintf( stdout, "    Minor: %d\n", MT_DEVICE_version_info.minor     );
+    fprintf( stdout, "    Maint: %d\n", MT_DEVICE_version_info.maint     );
+    fprintf( stdout, "----------------------------------------\n");
+    fprintf( stdout, "Start the gateway application\n");
 
     server_thread_id = THREAD_create("server-thread",
                                      appsrv_server_thread, 0,

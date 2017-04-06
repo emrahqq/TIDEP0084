@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
  *****************************************************************************/
 
 #if (defined(_MSC_VER) || defined(__linux__))
@@ -247,10 +247,7 @@ static NVINTF_nvFuncts_t *pNV = NULL;
 /* Permit join setting */
 static bool permitJoining = false;
 
-#if !IS_HLOS
-/* only used in embedded */
-static bool started = CONFIG_AUTO_START_DEFAULT;
-#endif
+static bool started = false;
 
 /* The last saved coordinator frame counter */
 static uint32_t lastSavedCoordinatorFrameCounter = 0;
@@ -305,6 +302,7 @@ void removeBlackListItem(ApiMac_sAddr_t *pAddr);
 static void removeTheFirstDevice(void);
 #endif
 #if !IS_HLOS
+/* not used in hlos version */
 static uint16_t getTheFirstDevice(void);
 #endif
 
@@ -344,6 +342,10 @@ void Csf_init(void *sem)
 
     /* Save off the semaphore */
     collectorSem = sem;
+
+    /* Initialize PA/LNA if enabled */
+    ApiMac_mlmeSetReqUint8(ApiMac_attribute_rangeExtender,
+                           (uint8_t)CONFIG_RANGE_EXT_MODE);
 
     /* Initialize keys */
     if(Board_Key_initialize(processKeyChangeCallback) == KEY_RIGHT)
@@ -620,16 +622,22 @@ ApiMac_assocStatus_t Csf_deviceUpdate(ApiMac_deviceDescriptor_t *pDevInfo,
 
         if(addDeviceListItem(&dev) == false)
         {
+#ifdef NV_RESTORE
             status = ApiMac_assocStatus_panAtCapacity;
 
 #if IS_HLOS
-            LOG_printf(LOG_ERROR,
-                       "Failed: 0x%04x\n",
-                       pDevInfo->shortAddress);
+            LOG_printf(LOG_ERROR,"Failed: 0x%04x\n", pDevInfo->shortAddress);
 #else
-            LCD_WRITE_STRING_VALUE("Failed: 0x", pDevInfo->shortAddress,
-                                   16, 4);
+            LCD_WRITE_STRING_VALUE("Failed: 0x", pDevInfo->shortAddress, 16, 4);
 #endif /* IS_HLOS */
+#else
+	    status = ApiMac_assocStatus_success;
+#if IS_HLOS
+	    LOG_printf(LOG_ERROR,"Joined: 0x%04x\n", pDevInfo->shortAddress);
+#else
+            LCD_WRITE_STRING_VALUE("Joined: 0x", pDevInfo->shortAddress, 16, 4);
+#endif
+#endif /* NV_RESTORE */	    
         }
         else
         {
@@ -1036,12 +1044,10 @@ void Csf_setTrickleClock(uint32_t trickleTime, uint8_t frameType)
         TIMER_CB_destroy(tricklePAClkHandle);
         tricklePAClkHandle = 0;
 
+	/* then create new, only if needed */
         if(trickleTime > 0)
         {
             /* Setup timer */
-            randomNum = ((ApiMac_randomByte() << 8) + ApiMac_randomByte());
-            trickleTime = (trickleTime >> 1) +
-                          (randomNum % (trickleTime >> 1));
             tricklePAClkHandle = TIMER_CB_create(
                 "paTrickleTimer",
                     processPATrickleTimeoutCallback_WRAPPER,
@@ -1070,12 +1076,9 @@ void Csf_setTrickleClock(uint32_t trickleTime, uint8_t frameType)
         /* always stop */
         TIMER_CB_destroy(tricklePCClkHandle);
         tricklePCClkHandle = 0;
-
+	/* and recreate only if needed */
         if(trickleTime > 0)
         {
-            randomNum = ((ApiMac_randomByte() << 8) + ApiMac_randomByte());
-            trickleTime = (trickleTime >> 1) +
-                          (randomNum % (trickleTime >> 1));
             /* Setup timer */
             tricklePCClkHandle =
                 TIMER_CB_create(
@@ -1146,9 +1149,10 @@ void Csf_setJoinPermitClock(uint32_t joinDuration)
 void Csf_setConfigClock(uint32_t delay)
 {
 #if IS_HLOS
+    /* always destroy */
     TIMER_CB_destroy( configClkHandle );
     configClkHandle = 0;
-
+    /* and create if needed */
     if( delay != 0 ){
         configClkHandle =
             TIMER_CB_create( "configClk",
@@ -1666,6 +1670,29 @@ bool Csf_isConfigTimerActive(void)
 #endif
     return b;
 }
+
+/*!
+ Check if tracking timer is active
+
+ Public function defined in csf.h
+*/
+bool Csf_isTrackingTimerActive(void)
+{
+    bool b;
+#if IS_HLOS
+    int r;
+    r = TIMER_CB_getRemain(trackingClkHandle);
+    if( r < 0 ){
+        b = false;
+    } else {
+        b = true;
+    }
+#else
+    b = (Timer_isActive(&trackingClkStruct));
+#endif
+    return b;
+}
+
 /******************************************************************************
  Local Functions
  *****************************************************************************/
@@ -2431,4 +2458,3 @@ Cllc_states_t Csf_getCllcState(void)
  *  End:
  *  vim:set  filetype=c tabstop=4 shiftwidth=4 expandtab=true
  */
-

@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
  *****************************************************************************/
 #ifndef UTIL_H
 #define UTIL_H
@@ -76,6 +76,15 @@ extern "C"
 #endif
 #endif
 
+#if !defined(CONST)
+#if defined(UNIT_TEST)
+/*! Allow constant to be used in different context*/
+#define CONST
+#else
+/*! Define CONST as const for local variables */
+#define CONST const
+#endif
+#endif
 /*!
  * \ingroup UtilMisc
  * @{
@@ -157,13 +166,6 @@ extern uint32_t Util_buildUint32(uint8_t byte0, uint8_t byte1, uint8_t byte2,
                                  uint8_t byte3);
 
 /*!
- * @brief  Build a uint16_t out of a buffer
- *
- * @param pArr - the byte array to use.
- */
-extern uint16_t Util_buildUint16b(uint8_t *pArr);
-
-/*!
  * @brief      Pulls 1 uint8_t out of a uint32_t
  *
  * @param      var - uint32_t variable
@@ -227,6 +229,14 @@ extern void Util_clearEvent(uint16_t *pEvent, uint16_t event);
  * @param       event - event(s) to clear
  */
 extern void Util_setEvent(uint16_t *pEvent, uint16_t event);
+
+/*!
+ * @brief       Utility function to copy the extended address
+ *
+ * @param       pSrcAddr - pointer to source from which to be copied
+ * @param       pDstAddr - pointer to destination to copy to
+ */
+extern void Util_copyExtAddr(void *pSrcAddr, void *pDstAddr);
 
 /*! @} end group UtilMisc */
 

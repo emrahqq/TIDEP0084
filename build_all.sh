@@ -116,7 +116,7 @@ script -e -f -c "cd example/npi_server2 && make $target" $target.npi_server2.log
 
 script -e -f -c "cd example/collector && make $target" $target.collector.log
 
-script -e -f -c "cd example/cc13xx-sbl/app/linux && make $target" $target.bootloader.log
+# script -e -f -c "cd example/cc13xx-sbl/app/linux && make $target" $target.bootloader.log
 
 #  ========================================
 #  Texas Instruments Micro Controller Style

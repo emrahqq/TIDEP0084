@@ -39,8 +39,8 @@
 #   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 #   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #############################################################
-# $Release Name: TI-15.4Stack Linux x64 SDK$
-# $Release Date: July 14, 2016 (2.00.00.30)$
+# $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+# $Release Date: Mar 08, 2017 (2.01.00.10)$
 #############################################################
 
 _default: _app
@@ -49,14 +49,16 @@ PROTOC_INSTALL_DIR=../google/install
 
 COMPONENTS_HOME=../../components
 
-CFLAGS+= -DAUTO_START
+HERE=$(shell pwd)
+CFLAGS += -include ${HERE}/timac_features.h
+CFLAGS += -DAUTO_START
 CFLAGS += -DNV_RESTORE
 CFLAGS += -I.
 CFLAGS += -I./protobuf-c
 CFLAGS += -I${COMPONENTS_HOME}/common/inc
 CFLAGS += -I${COMPONENTS_HOME}/nv/inc
 CFLAGS += -I${COMPONENTS_HOME}/api/inc
-CFLAGS += -DSENSOR_TAG_SUPPORT
+
 #----------------------------------------
 # NOTE: to use the Protobuf-C package that is built
 # locally to the  "../google/"  directory you must do 4 things:

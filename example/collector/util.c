@@ -40,48 +40,22 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
  *****************************************************************************/
+
+#define UTIL_SADDR_EXT_LEN  8
 
 /******************************************************************************
  Includes
  *****************************************************************************/
 
 #include "compiler.h"
+#include <string.h>
 #include <stdint.h>
 #include "hlos_specific.h"
 #include "util.h"
 
-/*!
-  Utility function to clear an event
-
- Public function defined in util.h
- */
-void Util_clearEvent(uint16_t *pEvent, uint16_t event)
-{
-
-    _ATOMIC_global_lock();
-    /* Clear the event */
-    *pEvent &= ~(event);
-    
-    _ATOMIC_global_unlock();
-}
-
-/*!
-  Utility function to set an event
-
- Public function defined in util.h
- */
-void Util_setEvent(uint16_t *pEvent, uint16_t event)
-{
-    _ATOMIC_global_lock();
-    
-    /* Set the event */
-    *pEvent |= event;
-    
-    _ATOMIC_global_unlock();
-}
 
 /*!
  Get the high byte of a uint16_t variable
@@ -111,16 +85,6 @@ uint8_t Util_loUint16(uint16_t a)
 uint16_t Util_buildUint16(uint8_t loByte, uint8_t hiByte)
 {
     return((uint16_t)(((loByte) & 0x00FF) + (((hiByte) & 0x00FF) << 8)));
-}
-
-/*!
- Build a uint16_t from a uint8_t array
-
- Public function defined in util.h
- */
-uint16_t Util_buildUint16b(uint8_t *pArr)
-{
-    return(Util_buildUint16(pArr[0], pArr[1]));
 }
 
 /*!
@@ -195,6 +159,44 @@ uint8_t *Util_bufferUint32(uint8_t *pBuf, uint32_t val)
     return(pBuf);
 }
 
+/*!
+  Utility function to clear an event
+
+ Public function defined in util.h
+ */
+void Util_clearEvent(uint16_t *pEvent, uint16_t event)
+{
+    _ATOMIC_global_lock();
+    /* Clear the event */
+    *pEvent &= ~(event);
+    
+    _ATOMIC_global_unlock();
+}
+
+/*!
+  Utility function to set an event
+
+ Public function defined in util.h
+ */
+void Util_setEvent(uint16_t *pEvent, uint16_t event)
+{
+    _ATOMIC_global_lock();
+
+    /* Set the event */
+    *pEvent |= event;
+
+    _ATOMIC_global_unlock();
+}
+
+/*!
+  Utility function to copy the extended address
+
+ Public function defined in util.h
+ */
+void Util_copyExtAddr(void *pSrcAddr, void *pDstAddr)
+{
+    memcpy(pSrcAddr, pDstAddr, (UTIL_SADDR_EXT_LEN));
+}
 
 /*
  *  ========================================
@@ -209,4 +211,3 @@ uint8_t *Util_bufferUint32(uint8_t *pBuf, uint32_t val)
  *  End:
  *  vim:set  filetype=c tabstop=4 shiftwidth=4 expandtab=true
  */
-

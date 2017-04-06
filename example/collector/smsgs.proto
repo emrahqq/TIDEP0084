@@ -41,8 +41,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
  *****************************************************************************/
 
 syntax = "proto2";
@@ -87,11 +87,15 @@ enum Smsgs_dataFields
     Smsgs_dataFields_msgStats = 0x0008;
     /*! Config Settings */
     Smsgs_dataFields_configSettings = 0x0010;
-    /*! Pressure sensor*/
+    /*! Toggle Settings - changed to 0x30 from 0x20 */
+    Smsgs_dataFields_toggleSettings = 0x0030;
+    /*! Pressure Sensor */
     Smsgs_dataFields_pressureSensor = 0x0020;
-    /*! Suyash changed this to 0x300 from 0x200 Toggle Settings */
-    Smsgs_dataFields_toggleSettings = 0x0030;  
-    
+    /*! Motion Sensor */
+    Smsgs_dataFields_motionSensor = 0x0040;
+    /*! battery Sensor */
+    Smsgs_dataFields_batterySensor = 0x0080;
+
 }
 
 /*!
@@ -215,20 +219,6 @@ message Smsgs_lightSensorField
 }
 
 /*!
- Pressure Sensor Field
- */
-message Smsgs_pressureSensorField
-{
-	/*! Temperature value read out of the BMP280 pressure sensor */
-	required uint32 tempValue =1;
-
-	/*! Pressure value read out of the BMP280 pressure sensor */
-    required uint32 pressureValue=2 ;
-} 
-
-
-
-/*!
   Humidity Sensor Field
 */
 message Smsgs_humiditySensorField
@@ -237,6 +227,32 @@ message Smsgs_humiditySensorField
     required uint32 temp = 1;
     /*! Raw Humidity Sensor Data from the TI HCD1000 humidity sensor. */
     required uint32 humidity = 2;
+}
+
+/*!
+ Pressure Sensor Field
+ */
+message Smsgs_pressureSensorField
+{
+  /*! Temperature value read out of the BMP280 pressure sensor */
+  required uint32 tempValue =1;
+
+  /*! Pressure value read out of the BMP280 pressure sensor */
+    required uint32 pressureValue=2 ;
+} 
+
+/*! Motion Sensor Field */
+message Smsgs_motionSensorField
+{
+  /* true if motion detected, false if no motion */
+  required bool isMotion=1;
+}
+
+/*! Battery Sensor Field */
+message Smsgs_batterySensorField
+{
+  /* battery voltage in mv */
+  required uint32 voltageValue=1;
 }
 
 /*!
@@ -326,9 +342,18 @@ message Smsgs_sensorMsg
     */
     optional Smsgs_configSettingsField configSettings = 7;
     /*! 
-      Pressure Sensor Field 
-      */
+      Pressure Sensor Field
+    */
     optional Smsgs_pressureSensorField pressureSensor = 8;
+    /*!
+      Motion Sensor Field 
+    */
+    optional Smsgs_motionSensorField motionSensor = 9;
+    /*!
+      Battery sensor field 
+    */
+    optional Smsgs_batterySensorField batterySensor = 10;
+
 }
 
 //  ========================================

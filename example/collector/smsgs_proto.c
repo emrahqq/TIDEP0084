@@ -39,8 +39,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
  *****************************************************************************/
 
 #include "malloc.h"
@@ -121,6 +121,42 @@ void free_SmsgsTempSensorField(SmsgsTempSensorField *pThis)
     }
 }
 
+/* Free memory for a msg stats field.
+ * Public function defined in smsgs_proto.h
+ */
+void free_SmsgsPressureSensorField(SmsgsPressureSensorField *pThis)
+{
+    if(pThis)
+    {
+        free((void *)(pThis));
+        pThis = NULL;
+    }
+}
+
+/* Free memory for a msg stats field.
+ * Public function defined in smsgs_proto.h
+ */
+void free_SmsgsMotionSensorField(SmsgsMotionSensorField *pThis)
+{
+    if(pThis)
+    {
+        free((void *)(pThis));
+        pThis = NULL;
+    }
+}
+
+/* Free memory for a msg stats field.
+ * Public function defined in smsgs_proto.h
+ */
+void free_SmsgsBatterySensorField(SmsgsBatterySensorField *pThis)
+{
+    if(pThis)
+    {
+        free((void *)(pThis));
+        pThis = NULL;
+    }
+}
+
 /* Convert settings field to protobuf form
  * Public function defined in smsgs_proto.h
  */
@@ -139,25 +175,6 @@ SmsgsConfigSettingsField *copy_Smsgs_configSettingsField(
         smsgs_config_settings_field__init(pResult);
         pResult->reportinginterval      = pThis->reportingInterval;
         pResult->pollinginterval        = pThis->pollingInterval;
-    }
-    return pResult;
-}
-
-// Suyash
-SmsgsPressureSensorField *copy_Smsgs_pressureSensorField(const Smsgs_pressureSensorField_t *pThis)
-{
-    SmsgsPressureSensorField *pResult;
-
-    pResult = calloc(1, sizeof(*pResult));
-    if(!pResult)
-    {
-        LOG_printf(LOG_ERROR, "No memory for: SmsgsPressureSensorField\n");
-    }
-    else
-    {
-        smsgs_pressure_sensor_field__init(pResult);
-        pResult->tempvalue      = pThis->tempValue;
-        pResult->pressurevalue  = pThis->pressureValue;
     }
     return pResult;
 }
@@ -308,6 +325,33 @@ SmsgsSensorMsg *copy_Smsgs_sensorMsg(const Smsgs_sensorMsg_t *pSensorMsg)
             fail = true;
         }
     }
+    if(pSensorMsg->frameControl & Smsgs_dataFields_pressureSensor)
+    {
+        pResult->pressuresensor =
+            copy_Smsgs_pressureSensorField(&(pSensorMsg->pressureSensor));
+        if(pResult->pressuresensor == NULL)
+        {
+            fail = true;
+        }
+    }
+    if(pSensorMsg->frameControl & Smsgs_dataFields_motionSensor)
+    {
+        pResult->motionsensor =
+            copy_Smsgs_motionSensorField(&(pSensorMsg->motionSensor));
+        if(pResult->motionsensor == NULL)
+        {
+            fail = true;
+        }
+    }
+    if(pSensorMsg->frameControl & Smsgs_dataFields_batteryVoltageSensor)
+    {
+        pResult->batterysensor =
+            copy_Smsgs_batterySensorField(&(pSensorMsg->batterySensor));
+        if(pResult->batterysensor == NULL)
+        {
+            fail = true;
+        }
+    }
 
     if(pSensorMsg->frameControl & Smsgs_dataFields_msgStats)
     {
@@ -324,15 +368,6 @@ SmsgsSensorMsg *copy_Smsgs_sensorMsg(const Smsgs_sensorMsg_t *pSensorMsg)
         pResult->configsettings =
             copy_Smsgs_configSettingsField(&(pSensorMsg->configSettings));
         if(pResult->configsettings == NULL)
-        {
-            fail = true;
-        }
-    }
-    if(pSensorMsg->frameControl & Smsgs_dataFields_pressureSensor)
-    {
-        pResult->pressuresensor =
-        copy_Smsgs_pressureSensorField(&(pSensorMsg->pressureSensor));
-        if(pResult->pressuresensor == NULL)
         {
             fail = true;
         }
@@ -373,6 +408,24 @@ void free_SmsgsSensorMsg(SmsgsSensorMsg *pThis)
     {
         free_SmsgsHumiditySensorField(pThis->humiditysensor);
         pThis->humiditysensor = NULL;
+    }
+
+    if(pThis->pressuresensor)
+    {
+        free_SmsgsPressureSensorField(pThis->pressuresensor);
+        pThis->pressuresensor = NULL;
+    }
+
+    if(pThis->motionsensor)
+    {
+        free_SmsgsMotionSensorField(pThis->motionsensor);
+        pThis->motionsensor = NULL;
+    }
+
+    if(pThis->batterysensor)
+    {
+        free_SmsgsBatterySensorField(pThis->batterysensor);
+        pThis->batterysensor = NULL;
     }
 
     if(pThis->msgstats)
@@ -423,6 +476,58 @@ void free_SmsgsConfigRspMsg(SmsgsConfigRspMsg *pThis)
     {
         free(pThis);
     }
+}
+
+SmsgsPressureSensorField *copy_Smsgs_pressureSensorField(const Smsgs_pressureSensorField_t *pThis)
+{
+    SmsgsPressureSensorField *pResult;
+
+    pResult = calloc(1, sizeof(*pResult));
+    if(!pResult)
+    {
+        LOG_printf(LOG_ERROR, "No memory for: SmsgsPressureSensorField\n");
+    }
+    else
+    {
+        smsgs_pressure_sensor_field__init(pResult);
+        pResult->tempvalue      = pThis->tempValue;
+        pResult->pressurevalue  = pThis->pressureValue;
+    }
+    return pResult;
+}
+
+SmsgsMotionSensorField *copy_Smsgs_motionSensorField(const Smsgs_motionSensorField_t *pThis)
+{
+    SmsgsMotionSensorField *pResult;
+
+    pResult = calloc(1, sizeof(*pResult));
+    if(!pResult)
+    {
+        LOG_printf(LOG_ERROR, "No memory for: SmsgsMotionSensorField\n");
+    }
+    else
+    {
+        smsgs_motion_sensor_field__init(pResult);
+        pResult->ismotion  = pThis->isMotion;
+    }
+    return pResult;
+}
+
+SmsgsBatterySensorField *copy_Smsgs_batterySensorField(const Smsgs_batterySensorField_t *pThis)
+{
+    SmsgsBatterySensorField *pResult;
+
+    pResult = calloc(1, sizeof(*pResult));
+    if(!pResult)
+    {
+        LOG_printf(LOG_ERROR, "No memory for: SmsgsBatterySensorField\n");
+    }
+    else
+    {
+        smsgs_battery_sensor_field__init(pResult);
+        pResult->voltagevalue  = pThis->voltageValue;
+    }
+    return pResult;
 }
 
 /*

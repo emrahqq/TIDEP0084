@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
  *****************************************************************************/
 #ifndef API_MAC_H
 #define API_MAC_H
@@ -236,17 +236,25 @@ extern "C"
 /*! Maximum number of Standard PHY descriptor entries */
 #define APIMAC_STANDARD_PHY_DESCRIPTOR_ENTRIES  3
 /*! Maximum number of Generic PHY descriptor entries */
-#define APIMAC_GENERIC_PHY_DESCRIPTOR_ENTRIES   3
+#define APIMAC_GENERIC_PHY_DESCRIPTOR_ENTRIES   6
 
-/*! PHY IDs - 915MHz US Frequency band operating mode # 1 */
-#define APIMAC_STD_US_915_PHY_1 1
-/*! 863MHz ETSI Frequency band operating mode #1 */
-#define APIMAC_STD_ETSI_863_PHY_3 3
+ /*! PHY IDs - 915MHz US Frequency band operating mode # 1 */
+ #define APIMAC_STD_US_915_PHY_1                 1
+ /*! 863MHz ETSI Frequency band operating mode #1 */
+ #define APIMAC_STD_ETSI_863_PHY_3               3
+  /*! 433MHz China Frequency band operating mode #1 */
+ #define APIMAC_GENERIC_CHINA_433_PHY_128        128
+  /*! PHY IDs - 915MHz LRM US Frequency band operating mode # 1 */
+ #define APIMAC_GENERIC_US_LRM_915_PHY_129       129
+  /*! 433MHz China LRM Frequency band operating mode #1 */
+ #define APIMAC_GENERIC_CHINA_LRM_433_PHY_130    130
+  /*! 863MHz ETSI LRM Frequency band operating mode #1 */
+ #define APIMAC_GENERIC_ETSI_LRM_863_PHY_131     131
 
 /*! PHY IDs - MRFSK Generic Phy ID start */
-#define APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN 128
+#define APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN APIMAC_GENERIC_CHINA_433_PHY_128
 /*! PHY IDs - MRFSK Generic Phy ID end */
-#define APIMAC_MRFSK_GENERIC_PHY_ID_END 143
+#define APIMAC_MRFSK_GENERIC_PHY_ID_END ( APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN + APIMAC_GENERIC_PHY_DESCRIPTOR_ENTRIES - 1 )
 
 /*! PHY IDs - MRFSK Standard Phy ID start */
 #define APIMAC_MRFSK_STD_PHY_ID_BEGIN APIMAC_STD_US_915_PHY_1
@@ -255,6 +263,11 @@ extern "C"
 
 /*! PHY descriptor table entry */
 #define APIMAC_PHY_DESCRIPTOR 0x01
+
+/*! Range Extender Mode */
+#define APIMAC_NO_EXTENDER      0x00
+#define APIMAC_HIGH_GAIN_MODE   0x01
+#define APIMAC_LOW_GAIN_MODE    0x02
 
 /*!
  Special address value - Short address value indicating extended address
@@ -731,6 +744,14 @@ typedef enum
      descriptor table
      */
     ApiMac_attribute_phyCurrentDescriptorId = 0xE8,
+    /*!
+     RSSI threshold for CCA, expressed as a signed int with range -127 to 127
+     */
+    ApiMac_attribute_rssiThreshold = 0xF4,
+    /*!
+     Range Extender Mode from 0 to 2
+     */
+    ApiMac_attribute_rangeExtender = 0xF5,
 } ApiMac_attribute_uint8_t;
 
 /*! Standard PIB Get and Set Attributes - size uint16_t */
@@ -941,6 +962,13 @@ typedef enum
     ApiMac_FHAttribute_eapolReady = 0x2011,
     /*! Wi-SUN FAN version - uint8_t */
     ApiMac_FHAttribute_fanTPSVersion = 0x2012,
+    /*! Additional base wait time to sense target channel */
+    ApiMac_FHAttribute_CsmaBaseBacoff = 0x201A,
+    /*! Number of non-sleepy device - uint8_t */
+    ApiMac_FHAttribute_numNonSleepDevice = 0x201b,
+    /*! Number of sleepy device - uint8_t */
+    ApiMac_FHAttribute_numSleepDevice = 0x201c,
+
 } ApiMac_FHAttribute_uint8_t;
 
 /*! Frequency Hopping PIB Get and Set Attributes - size uint16_t */
@@ -1863,6 +1891,8 @@ typedef struct _apimac_mlmesyncreq
 /*! MLME WiSUN Async request type */
 typedef struct _apimac_mlmewsasyncreq
 {
+    /*! The security parameters for this message */
+    ApiMac_sec_t sec;
     /*! Start or Stop Async operation */
     ApiMac_wisunAsycnOperation_t operation;
     /*! Async frame type */
@@ -1872,8 +1902,6 @@ typedef struct _apimac_mlmewsasyncreq
      start operation
      */
     uint8_t channels[APIMAC_154G_CHANNEL_BITMAP_SIZ];
-    /*! The security parameters for this message */
-    ApiMac_sec_t sec;
 } ApiMac_mlmeWSAsyncReq_t;
 
 /*! Structure to pass information to the ApiMac_secAddDevice(). */
@@ -3296,18 +3324,4 @@ extern ApiMac_status_t ApiMac_secAddKeyInitFrameCounter(
 #endif
 
 #endif /* API_MAC_H */
-
-/*
- *  ========================================
- *  Texas Instruments Micro Controller Style
- *  ========================================
- *  Local Variables:
- *  mode: c
- *  c-file-style: "bsd"
- *  tab-width: 4
- *  c-basic-offset: 4
- *  indent-tabs-mode: nil
- *  End:
- *  vim:set  filetype=c tabstop=4 shiftwidth=4 expandtab=true
- */
 

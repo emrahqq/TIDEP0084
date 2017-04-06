@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
  *****************************************************************************/
 #ifndef CLLC_H
 #define CLLC_H
@@ -76,6 +76,12 @@ extern "C"
 
 /*! Association status */
 #define CLLC_ASSOC_STATUS_ALIVE 0x0001
+
+#if ((CONFIG_PHY_ID >= APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN + 1) && (CONFIG_PHY_ID <= APIMAC_MRFSK_GENERIC_PHY_ID_END))
+#define LRM_MODE  1
+#else
+#define LRM_MODE  0
+#endif
 
 /*!
  Coordinator State Values
@@ -247,7 +253,7 @@ extern void Cllc_startNetwork(void);
  * @param       pDevList - list of devices
  */
 extern void Cllc_restoreNetwork(Llc_netInfo_t *pNetworkInfo, uint8_t numDevices,
-                                Llc_deviceListItem_t *pDevList);
+		Llc_deviceListItem_t *pDevList);
 /*!
  * @brief       Remove device from the network.
  *              <BR>

@@ -39,8 +39,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
  *****************************************************************************/
 
 #include "compiler.h"
@@ -65,9 +65,14 @@
 #include "nv_linux.h"
 #include "config.h"
 
-int linux_CONFIG_TRANSMIT_POWER = CONFIG_TRANSMIT_POWER_DEFAULT;
 
+int linux_FH_NUM_NON_SLEEPY_NEIGHBORS = FH_NUM_NON_SLEEPY_NEIGHBORS_DEFAULT;
+int linux_FH_NUM_SLEEPY_NEIGHBORS = FH_NUM_SLEEPY_NEIGHBORS_DEFAULT;
+
+int linux_CONFIG_TRANSMIT_POWER = CONFIG_TRANSMIT_POWER_DEFAULT;
+int linux_CERTIFICATION_TEST_MODE = CERTIFICATION_TEST_MODE_DEFAULT;
 int linux_CONFIG_PHY_ID = CONFIG_PHY_ID_DEFAULT;
+int linux_CONFIG_RANGE_EXT_MODE = CONFIG_RANGE_EXT_MODE_DEFAULT;
 int linux_CONFIG_CHANNEL_PAGE = CONFIG_CHANNEL_PAGE_DEFAULT;
 uint8_t linux_CONFIG_FH_CHANNEL_MASK[APIMAC_154G_CHANNEL_BITMAP_SIZ]= CONFIG_FH_CHANNEL_MASK_DEFAULT;
 uint8_t linux_CONFIG_CHANNEL_MASK[APIMAC_154G_CHANNEL_BITMAP_SIZ] = CONFIG_CHANNEL_MASK_DEFAULT;
@@ -296,6 +301,33 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
         return 0;
     }
 
+    if( INI_itemMatches(pINI, NULL, "fh-num-non-sleepy-neighbors" ) )
+    {
+        linux_FH_NUM_NON_SLEEPY_NEIGHBORS = INI_valueAsInt(pINI);
+        *handled = true;
+        return 0;
+    }
+
+
+    if( INI_itemMatches(pINI, NULL, "fh-num-sleepy-neighbors" ) )
+    {
+        linux_FH_NUM_SLEEPY_NEIGHBORS = INI_valueAsInt(pINI);
+        *handled = true;
+        return 0;
+    }
+
+    if( INI_itemMatches(pINI, NULL, "config-polling-interval" ) ){
+        linux_CONFIG_POLLING_INTERVAL = INI_valueAsInt(pINI);
+        *handled = true;
+        return 0;
+    }
+
+    if( INI_itemMatches(pINI, NULL, "config-reporting-interval" ) ){
+        linux_CONFIG_REPORTING_INTERVAL = INI_valueAsInt(pINI);
+        *handled = true;
+        return 0;
+    }
+
     if( INI_itemMatches(pINI,NULL, "config-tx-power" ) ){
         linux_CONFIG_TRANSMIT_POWER = INI_valueAsInt(pINI);
         *handled = true;
@@ -311,21 +343,21 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
 
     if(INI_itemMatches(pINI, NULL, "config-linkquality"))
     {
-        linux_CONFIG_LINKQUALITY = INI_valueAsInt(pINI);
+        linux_CONFIG_LINKQUALITY = (uint8_t)INI_valueAsInt(pINI);
         *handled = true;
         return 0;
     }
 
     if(INI_itemMatches(pINI, NULL, "config-scan-duration"))
     {
-        linux_CONFIG_SCAN_DURATION = INI_valueAsInt(pINI);
+        linux_CONFIG_SCAN_DURATION = (uint8_t)INI_valueAsInt(pINI);
         *handled = true;
         return 0;
     }
 
     if(INI_itemMatches(pINI, NULL, "config-percentfilter"))
     {
-        linux_CONFIG_PERCENTFILTER = INI_valueAsInt(pINI);
+        linux_CONFIG_PERCENTFILTER = (uint8_t)INI_valueAsInt(pINI);
         *handled = true;
         return 0;
     }
@@ -341,6 +373,13 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
     {
         INI_dequote(pINI);
         strcpy( linux_CONFIG_FH_NETNAME, pINI->item_value );
+        *handled = true;
+        return 0;
+    }
+	
+	if(INI_itemMatches(pINI, NULL, "config-range-ext"))
+    {
+        linux_CONFIG_RANGE_EXT_MODE = INI_valueAsInt(pINI);
         *handled = true;
         return 0;
     }

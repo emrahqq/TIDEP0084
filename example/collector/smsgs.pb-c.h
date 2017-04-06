@@ -23,8 +23,10 @@ typedef struct _SmsgsToggleLedReqMsg SmsgsToggleLedReqMsg;
 typedef struct _SmsgsToggleLedRspMsg SmsgsToggleLedRspMsg;
 typedef struct _SmsgsTempSensorField SmsgsTempSensorField;
 typedef struct _SmsgsLightSensorField SmsgsLightSensorField;
-typedef struct _SmsgsPressureSensorField SmsgsPressureSensorField;
 typedef struct _SmsgsHumiditySensorField SmsgsHumiditySensorField;
+typedef struct _SmsgsPressureSensorField SmsgsPressureSensorField;
+typedef struct _SmsgsMotionSensorField SmsgsMotionSensorField;
+typedef struct _SmsgsBatterySensorField SmsgsBatterySensorField;
 typedef struct _SmsgsMsgStatsField SmsgsMsgStatsField;
 typedef struct _SmsgsConfigSettingsField SmsgsConfigSettingsField;
 typedef struct _SmsgsSensorMsg SmsgsSensorMsg;
@@ -97,13 +99,21 @@ typedef enum _SmsgsDataFields {
    */
   SMSGS_DATA_FIELDS__Smsgs_dataFields_configSettings = 16,
   /*
-   *! Pressure sensor
+   *! Toggle Settings - changed to 0x30 from 0x20 
+   */
+  SMSGS_DATA_FIELDS__Smsgs_dataFields_toggleSettings = 48,
+  /*
+   *! Pressure Sensor 
    */
   SMSGS_DATA_FIELDS__Smsgs_dataFields_pressureSensor = 32,
   /*
-   *! Suyash changed this to 0x300 from 0x200 Toggle Settings 
+   *! Motion Sensor 
    */
-  SMSGS_DATA_FIELDS__Smsgs_dataFields_toggleSettings = 48
+  SMSGS_DATA_FIELDS__Smsgs_dataFields_motionSensor = 64,
+  /*
+   *! battery Sensor 
+   */
+  SMSGS_DATA_FIELDS__Smsgs_dataFields_batterySensor = 128
     PROTOBUF_C__FORCE_ENUM_TO_BE_INT_SIZE(SMSGS_DATA_FIELDS)
 } SmsgsDataFields;
 /*
@@ -311,6 +321,27 @@ struct  _SmsgsLightSensorField
 
 /*
  *!
+ *Humidity Sensor Field
+ */
+struct  _SmsgsHumiditySensorField
+{
+  ProtobufCMessage base;
+  /*
+   *! Raw Temp Sensor Data from the TI HCD1000 humidity sensor. 
+   */
+  uint32_t temp;
+  /*
+   *! Raw Humidity Sensor Data from the TI HCD1000 humidity sensor. 
+   */
+  uint32_t humidity;
+};
+#define SMSGS_HUMIDITY_SENSOR_FIELD__INIT \
+ { PROTOBUF_C_MESSAGE_INIT (&smsgs_humidity_sensor_field__descriptor) \
+    , 0, 0 }
+
+
+/*
+ *!
  *Pressure Sensor Field
  */
 struct  _SmsgsPressureSensorField
@@ -331,24 +362,35 @@ struct  _SmsgsPressureSensorField
 
 
 /*
- *!
- *Humidity Sensor Field
+ *! Motion Sensor Field 
  */
-struct  _SmsgsHumiditySensorField
+struct  _SmsgsMotionSensorField
 {
   ProtobufCMessage base;
   /*
-   *! Raw Temp Sensor Data from the TI HCD1000 humidity sensor. 
+   * true if motion detected, false if no motion 
    */
-  uint32_t temp;
-  /*
-   *! Raw Humidity Sensor Data from the TI HCD1000 humidity sensor. 
-   */
-  uint32_t humidity;
+  protobuf_c_boolean ismotion;
 };
-#define SMSGS_HUMIDITY_SENSOR_FIELD__INIT \
- { PROTOBUF_C_MESSAGE_INIT (&smsgs_humidity_sensor_field__descriptor) \
-    , 0, 0 }
+#define SMSGS_MOTION_SENSOR_FIELD__INIT \
+ { PROTOBUF_C_MESSAGE_INIT (&smsgs_motion_sensor_field__descriptor) \
+    , 0 }
+
+
+/*
+ *! Battery Sensor Field 
+ */
+struct  _SmsgsBatterySensorField
+{
+  ProtobufCMessage base;
+  /*
+   * battery voltage in mv 
+   */
+  uint32_t voltagevalue;
+};
+#define SMSGS_BATTERY_SENSOR_FIELD__INIT \
+ { PROTOBUF_C_MESSAGE_INIT (&smsgs_battery_sensor_field__descriptor) \
+    , 0 }
 
 
 /*
@@ -486,13 +528,23 @@ struct  _SmsgsSensorMsg
   SmsgsConfigSettingsField *configsettings;
   /*
    *! 
-   *Pressure Sensor Field 
+   *Pressure Sensor Field
    */
   SmsgsPressureSensorField *pressuresensor;
+  /*
+   *!
+   *Motion Sensor Field 
+   */
+  SmsgsMotionSensorField *motionsensor;
+  /*
+   *!
+   *Battery sensor field 
+   */
+  SmsgsBatterySensorField *batterysensor;
 };
 #define SMSGS_SENSOR_MSG__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&smsgs_sensor_msg__descriptor) \
-    , 0, 0, NULL, NULL, NULL, NULL, NULL, NULL }
+    , 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }
 
 
 /* SmsgsConfigReqMsg methods */
@@ -647,6 +699,25 @@ SmsgsLightSensorField *
 void   smsgs_light_sensor_field__free_unpacked
                      (SmsgsLightSensorField *message,
                       ProtobufCAllocator *allocator);
+/* SmsgsHumiditySensorField methods */
+void   smsgs_humidity_sensor_field__init
+                     (SmsgsHumiditySensorField         *message);
+size_t smsgs_humidity_sensor_field__get_packed_size
+                     (const SmsgsHumiditySensorField   *message);
+size_t smsgs_humidity_sensor_field__pack
+                     (const SmsgsHumiditySensorField   *message,
+                      uint8_t             *out);
+size_t smsgs_humidity_sensor_field__pack_to_buffer
+                     (const SmsgsHumiditySensorField   *message,
+                      ProtobufCBuffer     *buffer);
+SmsgsHumiditySensorField *
+       smsgs_humidity_sensor_field__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data);
+void   smsgs_humidity_sensor_field__free_unpacked
+                     (SmsgsHumiditySensorField *message,
+                      ProtobufCAllocator *allocator);
 /* SmsgsPressureSensorField methods */
 void   smsgs_pressure_sensor_field__init
                      (SmsgsPressureSensorField         *message);
@@ -666,24 +737,43 @@ SmsgsPressureSensorField *
 void   smsgs_pressure_sensor_field__free_unpacked
                      (SmsgsPressureSensorField *message,
                       ProtobufCAllocator *allocator);
-/* SmsgsHumiditySensorField methods */
-void   smsgs_humidity_sensor_field__init
-                     (SmsgsHumiditySensorField         *message);
-size_t smsgs_humidity_sensor_field__get_packed_size
-                     (const SmsgsHumiditySensorField   *message);
-size_t smsgs_humidity_sensor_field__pack
-                     (const SmsgsHumiditySensorField   *message,
+/* SmsgsMotionSensorField methods */
+void   smsgs_motion_sensor_field__init
+                     (SmsgsMotionSensorField         *message);
+size_t smsgs_motion_sensor_field__get_packed_size
+                     (const SmsgsMotionSensorField   *message);
+size_t smsgs_motion_sensor_field__pack
+                     (const SmsgsMotionSensorField   *message,
                       uint8_t             *out);
-size_t smsgs_humidity_sensor_field__pack_to_buffer
-                     (const SmsgsHumiditySensorField   *message,
+size_t smsgs_motion_sensor_field__pack_to_buffer
+                     (const SmsgsMotionSensorField   *message,
                       ProtobufCBuffer     *buffer);
-SmsgsHumiditySensorField *
-       smsgs_humidity_sensor_field__unpack
+SmsgsMotionSensorField *
+       smsgs_motion_sensor_field__unpack
                      (ProtobufCAllocator  *allocator,
                       size_t               len,
                       const uint8_t       *data);
-void   smsgs_humidity_sensor_field__free_unpacked
-                     (SmsgsHumiditySensorField *message,
+void   smsgs_motion_sensor_field__free_unpacked
+                     (SmsgsMotionSensorField *message,
+                      ProtobufCAllocator *allocator);
+/* SmsgsBatterySensorField methods */
+void   smsgs_battery_sensor_field__init
+                     (SmsgsBatterySensorField         *message);
+size_t smsgs_battery_sensor_field__get_packed_size
+                     (const SmsgsBatterySensorField   *message);
+size_t smsgs_battery_sensor_field__pack
+                     (const SmsgsBatterySensorField   *message,
+                      uint8_t             *out);
+size_t smsgs_battery_sensor_field__pack_to_buffer
+                     (const SmsgsBatterySensorField   *message,
+                      ProtobufCBuffer     *buffer);
+SmsgsBatterySensorField *
+       smsgs_battery_sensor_field__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data);
+void   smsgs_battery_sensor_field__free_unpacked
+                     (SmsgsBatterySensorField *message,
                       ProtobufCAllocator *allocator);
 /* SmsgsMsgStatsField methods */
 void   smsgs_msg_stats_field__init
@@ -768,11 +858,17 @@ typedef void (*SmsgsTempSensorField_Closure)
 typedef void (*SmsgsLightSensorField_Closure)
                  (const SmsgsLightSensorField *message,
                   void *closure_data);
+typedef void (*SmsgsHumiditySensorField_Closure)
+                 (const SmsgsHumiditySensorField *message,
+                  void *closure_data);
 typedef void (*SmsgsPressureSensorField_Closure)
                  (const SmsgsPressureSensorField *message,
                   void *closure_data);
-typedef void (*SmsgsHumiditySensorField_Closure)
-                 (const SmsgsHumiditySensorField *message,
+typedef void (*SmsgsMotionSensorField_Closure)
+                 (const SmsgsMotionSensorField *message,
+                  void *closure_data);
+typedef void (*SmsgsBatterySensorField_Closure)
+                 (const SmsgsBatterySensorField *message,
                   void *closure_data);
 typedef void (*SmsgsMsgStatsField_Closure)
                  (const SmsgsMsgStatsField *message,
@@ -800,8 +896,10 @@ extern const ProtobufCMessageDescriptor smsgs_toggle_led_req_msg__descriptor;
 extern const ProtobufCMessageDescriptor smsgs_toggle_led_rsp_msg__descriptor;
 extern const ProtobufCMessageDescriptor smsgs_temp_sensor_field__descriptor;
 extern const ProtobufCMessageDescriptor smsgs_light_sensor_field__descriptor;
-extern const ProtobufCMessageDescriptor smsgs_pressure_sensor_field__descriptor;
 extern const ProtobufCMessageDescriptor smsgs_humidity_sensor_field__descriptor;
+extern const ProtobufCMessageDescriptor smsgs_pressure_sensor_field__descriptor;
+extern const ProtobufCMessageDescriptor smsgs_motion_sensor_field__descriptor;
+extern const ProtobufCMessageDescriptor smsgs_battery_sensor_field__descriptor;
 extern const ProtobufCMessageDescriptor smsgs_msg_stats_field__descriptor;
 extern const ProtobufCMessageDescriptor smsgs_config_settings_field__descriptor;
 extern const ProtobufCMessageDescriptor smsgs_sensor_msg__descriptor;

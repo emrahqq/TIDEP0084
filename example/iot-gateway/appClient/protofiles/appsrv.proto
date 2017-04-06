@@ -103,10 +103,15 @@ enum Smsgs_dataFields
     Smsgs_dataFields_msgStats = 0x0008;
     /*! Config Settings */
     Smsgs_dataFields_configSettings = 0x0010;
-    /*! Pressure sensor*/
-    Smsgs_dataFields_pressureSensor = 0x0020; 
-    /*! Toggle Settings */
+    /*! Toggle Settings - changed to 0x30 from 0x20 */
     Smsgs_dataFields_toggleSettings = 0x0030;
+    /*! Pressure Sensor */
+    Smsgs_dataFields_pressureSensor = 0x0020;
+    /*! Motion Sensor */
+    Smsgs_dataFields_motionSensor = 0x0040;
+    /*! battery Sensor */
+    Smsgs_dataFields_batterySensor = 0x0080;
+
 }
 
 /*!
@@ -232,6 +237,20 @@ message Smsgs_humiditySensorField
     required uint32 humidity = 2;
 }
 
+/*! Motion Sensor Field */
+message Smsgs_motionSensorField
+{
+  /* true if motion detected, false if no motion */
+  required bool isMotion=1;
+}
+
+/*! Battery Sensor Field */
+message Smsgs_batterySensorField
+{
+  /* battery voltage in mv */
+  required uint32 voltageValue=1;
+}
+
 /*!
   Message Statistics Field
 */
@@ -322,6 +341,14 @@ message Smsgs_sensorMsg
       Pressure Sensor Field 
     */
     optional Smsgs_pressureSensorField pressureSensor = 8;
+    /*!
+      Motion Sensor Field 
+    */
+    optional Smsgs_motionSensorField motionSensor = 9;
+    /*!
+      Battery sensor field 
+    */
+    optional Smsgs_batterySensorField batterySensor = 10;
 }
 
 /* From API_MAC.H */

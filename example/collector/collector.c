@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
  *****************************************************************************/
 
 /******************************************************************************
@@ -77,9 +77,6 @@
 /* beacon order for non beacon network */
 #define NON_BEACON_ORDER      15
 
-/* MAC Indirect Persistent Timeout */
-#define INDIRECT_PERSISTENT_TIME 750
-
 /* default MSDU Handle rollover */
 #define MSDU_HANDLE_MAX 0x3F
 
@@ -94,14 +91,19 @@
                               Smsgs_dataFields_lightSensor | \
                               Smsgs_dataFields_humiditySensor | \
                               Smsgs_dataFields_pressureSensor | \
+                              Smsgs_dataFields_motionSensor   | \
+                              Smsgs_dataFields_batteryVoltageSensor | \
                               Smsgs_dataFields_msgStats | \
                               Smsgs_dataFields_configSettings)
 
+#if ((CONFIG_PHY_ID >= APIMAC_MRFSK_STD_PHY_ID_BEGIN) && (CONFIG_PHY_ID <= APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN))
+/* MAC Indirect Persistent Timeout */
+#define INDIRECT_PERSISTENT_TIME 750	
 /* Default configuration reporting interval, in milliseconds */
-#define CONFIG_REPORTING_INTERVAL 90000
+#define CONFIG_REPORTING_INTERVAL_DEFAULT 90000
 
 /* Default configuration polling interval, in milliseconds */
-#define CONFIG_POLLING_INTERVAL 6000
+#define CONFIG_POLLING_INTERVAL_DEFAULT 6000
 
 /* Delay for config request retry in busy network */
 #define CONFIG_DELAY 1000
@@ -110,6 +112,31 @@
 #define TRACKING_CNF_DELAY_TIME 2000 /* in milliseconds */
 #define TRACKING_DELAY_TIME 60000 /* in milliseconds */
 #define TRACKING_TIMEOUT_TIME (CONFIG_POLLING_INTERVAL * 2) /*in milliseconds*/
+#else
+/* MAC Indirect Persistent Timeout
+ * This is in units of aBaseSuperframeDuration.
+ * It will be scaled accordingly for beacon mode.
+ * */
+#define INDIRECT_PERSISTENT_TIME 3750
+/* Default configuration reporting interval, in milliseconds */
+#define CONFIG_REPORTING_INTERVAL_DEFAULT 300000
+
+/* Default configuration polling interval, in milliseconds */
+#define CONFIG_POLLING_INTERVAL_DEFAULT 60000
+
+/* Delay for config request retry in busy network */
+#define CONFIG_DELAY 5000
+#define CONFIG_RESPONSE_DELAY 3*CONFIG_DELAY
+/* Tracking timeouts */
+#define TRACKING_CNF_DELAY_TIME 10000 /* in milliseconds */
+#define TRACKING_DELAY_TIME 300000 /* in milliseconds */
+#define TRACKING_TIMEOUT_TIME (CONFIG_POLLING_INTERVAL_DEFAULT * 2) /*in milliseconds*/
+#endif
+
+int linux_CONFIG_REPORTING_INTERVAL = CONFIG_REPORTING_INTERVAL_DEFAULT;
+#define CONFIG_REPORTING_INTERVAL linux_CONFIG_REPORTING_INTERVAL
+int linux_CONFIG_POLLING_INTERVAL = CONFIG_POLLING_INTERVAL_DEFAULT;
+#define CONFIG_POLLING_INTERVAL linux_CONFIG_POLLING_INTERVAL
 
 /* Assoc Table (CLLC) status settings */
 #define ASSOC_CONFIG_SENT       0x0100    /* Config Req sent */
@@ -169,7 +196,7 @@ static void processSensorData(ApiMac_mcpsDataInd_t *pDataInd);
 static Cllc_associated_devices_t *findDevice(ApiMac_sAddr_t *pAddr);
 static Cllc_associated_devices_t *findDeviceStatusBit(uint16_t mask, uint16_t statusBit);
 static uint8_t getMsduHandle(Smsgs_cmdIds_t msgType);
-static void sendMsg(Smsgs_cmdIds_t type, uint16_t dstShortAddr, bool rxOnIdle,
+static bool sendMsg(Smsgs_cmdIds_t type, uint16_t dstShortAddr, bool rxOnIdle,
                     uint16_t len,
                     uint8_t *pData);
 static void generateConfigRequests(void);
@@ -262,8 +289,15 @@ void Collector_init(void)
     Csf_init(sem);
 
     /* Set the indirect persistent timeout */
-    ApiMac_mlmeSetReqUint16(ApiMac_attribute_transactionPersistenceTime,
+/*#if (CONFIG_MAC_BEACON_ORDER_DEFAULT != NON_BEACON_ORDER_DEFAULT)
+/    ApiMac_mlmeSetReqUint16(ApiMac_attribute_transactionPersistenceTime,
+                            (INDIRECT_PERSISTENT_TIME >> CONFIG_MAC_BEACON_ORDER));
+#else
+*/    ApiMac_mlmeSetReqUint16(ApiMac_attribute_transactionPersistenceTime,
                             INDIRECT_PERSISTENT_TIME);
+/*#endif*/
+
+
     ApiMac_mlmeSetReqUint8(ApiMac_attribute_phyTransmitPowerSigned,
                            (uint8_t)CONFIG_TRANSMIT_POWER);
 
@@ -370,14 +404,20 @@ Collector_status_t Collector_sendConfigRequest(ApiMac_sAddr_t *pDstAddr,
             *pBuf++ = Util_breakUint32(pollingInterval, 2);
             *pBuf = Util_breakUint32(pollingInterval, 3);
 
-            sendMsg(Smsgs_cmdIds_configReq, item.devInfo.shortAddress,
-                    item.capInfo.rxOnWhenIdle,
-                    (SMSGS_CONFIG_REQUEST_MSG_LENGTH),
-                    buffer);
-            status = Collector_status_success;
-            Collector_statistics.configRequestAttempts++;
-            /* set timer for retry in case response is not received */
-            Csf_setConfigClock(CONFIG_DELAY);
+            if((sendMsg(Smsgs_cmdIds_configReq, item.devInfo.shortAddress,
+                        item.capInfo.rxOnWhenIdle,
+                        (SMSGS_CONFIG_REQUEST_MSG_LENGTH),
+                         buffer)) == true)
+            {
+                status = Collector_status_success;
+                Collector_statistics.configRequestAttempts++;
+                /* set timer for retry in case response is not received */
+                Csf_setConfigClock(CONFIG_DELAY);
+            }
+            else
+            {
+                processConfigRetry();
+            }
         }
     }
 
@@ -495,10 +535,12 @@ static ApiMac_assocStatus_t cllcDeviceJoiningCB(
         status = Csf_deviceUpdate(pDevInfo, pCapInfo);
         if(status==ApiMac_assocStatus_success)
         {
+#ifdef FEATURE_MAC_SECURITY
             /* Add device to security device table */
             Cllc_addSecDevice(pDevInfo->panID,
                               pDevInfo->shortAddress,
                               &pDevInfo->extAddress, 0);
+#endif /* FEATURE_MAC_SECURITY */
 
             Util_setEvent(&Collector_events, COLLECTOR_CONFIG_EVT);
         }
@@ -644,11 +686,13 @@ static void dataIndCB(ApiMac_mcpsDataInd_t *pDataInd)
     {
         Smsgs_cmdIds_t cmdId = (Smsgs_cmdIds_t)*(pDataInd->msdu.p);
 
+#ifdef FEATURE_MAC_SECURITY
         if(Cllc_securityCheck(&(pDataInd->sec)) == false)
         {
             /* reject the message */
             return;
         }
+#endif /* FEATURE_MAC_SECURITY */
 
         if(pDataInd->srcAddr.addrMode == ApiMac_addrType_extended)
         {
@@ -684,6 +728,10 @@ static void dataIndCB(ApiMac_mcpsDataInd_t *pDataInd)
             case Smsgs_cmdIds_sensorData:
                 processSensorData(pDataInd);
                 break;
+				
+            case Smsgs_cmdIds_rampdata:
+                Collector_statistics.sensorMessagesReceived++;
+                break;
 
             default:
                 /* Should not receive other messages */
@@ -698,18 +746,19 @@ static void dataIndCB(ApiMac_mcpsDataInd_t *pDataInd)
 static void processStartEvent(void)
 {
     Llc_netInfo_t netInfo;
+    uint32_t frameCounter = 0;
 
+    Csf_getFrameCounter(NULL, &frameCounter);
     /* See if there is existing network information */
     if(Csf_getNetworkInformation(&netInfo))
     {
         Llc_deviceListItem_t *pDevList = NULL;
         uint16_t numDevices = 0;
-        uint32_t frameCounter = 0;
 
-        Csf_getFrameCounter(NULL, &frameCounter);
-
+#ifdef FEATURE_MAC_SECURITY
         /* Initialize the MAC Security */
         Cllc_securityInit(frameCounter);
+#endif /* FEATURE_MAC_SECURITY */
 
         numDevices = Csf_getNumDeviceListEntries();
         if (numDevices > 0)
@@ -727,11 +776,13 @@ static void processStartEvent(void)
                 {
                     Csf_getDeviceItem(i, pItem);
 
+#ifdef FEATURE_MAC_SECURITY
                     /* Add device to security device table */
                     Cllc_addSecDevice(pItem->devInfo.panID,
                                       pItem->devInfo.shortAddress,
                                       &pItem->devInfo.extAddress,
                                       pItem->rxFrameCounter);
+#endif /* FEATURE_MAC_SECURITY */
                 }
             }
             else
@@ -754,8 +805,10 @@ static void processStartEvent(void)
     {
         restarted = false;
 
+#ifdef FEATURE_MAC_SECURITY
         /* Initialize the MAC Security */
-        Cllc_securityInit(0);
+        Cllc_securityInit(frameCounter);
+#endif /* FEATURE_MAC_SECURITY */
 
         /* Start a new netork */
         Cllc_startNetwork();
@@ -911,6 +964,37 @@ static void processSensorData(ApiMac_mcpsDataInd_t *pDataInd)
         pBuf += 2;
     }
 
+    if(sensorData.frameControl & Smsgs_dataFields_pressureSensor)
+    {
+        pBuf += 4;
+        sensorData.pressureSensor.pressureValue = Util_buildUint32(pBuf[0],
+                                                                     pBuf[1],
+                                                                     pBuf[2],
+                                                                     pBuf[3]);
+        pBuf +=4;
+        sensorData.pressureSensor.tempValue =  Util_buildUint32(pBuf[0],
+                                                                     pBuf[1],
+                                                                     pBuf[2],
+                                                                     pBuf[3]);                                          
+    }
+
+    if(sensorData.frameControl & Smsgs_dataFields_motionSensor)
+    {
+     
+      sensorData.motionSensor.isMotion = pBuf[0];
+      pBuf += 1;
+    }
+
+    if(sensorData.frameControl & Smsgs_dataFields_batteryVoltageSensor)
+    {
+      
+      sensorData.batterySensor.voltageValue = Util_buildUint32(pBuf[0],
+                                                                     pBuf[1],
+                                                                     pBuf[2],
+                                                                     pBuf[3]);
+      pBuf +=4;
+    }
+
     if(sensorData.frameControl & Smsgs_dataFields_msgStats)
     {
         sensorData.msgStats.joinAttempts = Util_buildUint16(pBuf[0], pBuf[1]);
@@ -979,21 +1063,6 @@ static void processSensorData(ApiMac_mcpsDataInd_t *pDataInd)
                                                                      pBuf[2],
                                                                      pBuf[3]);
     }
-#ifdef SENSOR_TAG_SUPPORT
-    if(sensorData.frameControl & Smsgs_dataFields_pressureSensor)
-    {
-        pBuf += 4;
-        sensorData.pressureSensor.pressureValue = Util_buildUint32(pBuf[0],
-                                                                     pBuf[1],
-                                                                     pBuf[2],
-                                                                     pBuf[3]);
-        pBuf +=4;
-        sensorData.pressureSensor.tempValue =  Util_buildUint32(pBuf[0],
-                                                                     pBuf[1],
-                                                                     pBuf[2],
-                                                                     pBuf[3]);                                          
-    }
-#endif
 
     Collector_statistics.sensorMessagesReceived++;
 
@@ -1117,8 +1186,10 @@ static uint8_t getMsduHandle(Smsgs_cmdIds_t msgType)
  * @param      rxOnIdle - true if not a sleepy device
  * @param      len - length of payload
  * @param      pData - pointer to the buffer
+ *
+ * @return  true if sent, false if not
  */
-static void sendMsg(Smsgs_cmdIds_t type, uint16_t dstShortAddr, bool rxOnIdle,
+static bool sendMsg(Smsgs_cmdIds_t type, uint16_t dstShortAddr, bool rxOnIdle,
                     uint16_t len,
                     uint8_t *pData)
 {
@@ -1131,7 +1202,7 @@ static void sendMsg(Smsgs_cmdIds_t type, uint16_t dstShortAddr, bool rxOnIdle,
     dataReq.dstAddr.addr.shortAddr = dstShortAddr;
     dataReq.srcAddrMode = ApiMac_addrType_short;
 
-    if(fhEnabled)
+    if(fhEnabled && !LRM_MODE)
     {
         Llc_deviceListItem_t item;
 
@@ -1146,7 +1217,7 @@ static void sendMsg(Smsgs_cmdIds_t type, uint16_t dstShortAddr, bool rxOnIdle,
         else
         {
             /* Can't send the message */
-            return;
+            return (false);
         }
     }
 
@@ -1163,11 +1234,21 @@ static void sendMsg(Smsgs_cmdIds_t type, uint16_t dstShortAddr, bool rxOnIdle,
     dataReq.msdu.len = len;
     dataReq.msdu.p = pData;
 
+#ifdef FEATURE_MAC_SECURITY
     /* Fill in the appropriate security fields */
     Cllc_securityFill(&dataReq.sec);
+#endif /* FEATURE_MAC_SECURITY */
 
     /* Send the message */
-    ApiMac_mcpsDataReq(&dataReq);
+    if(ApiMac_mcpsDataReq(&dataReq) != ApiMac_status_success)
+    {
+        /*  transaction overflow occurred */
+        return (false);
+    }
+    else
+    {
+        return (true);
+    }
 }
 
 /*!
@@ -1177,6 +1258,13 @@ static void sendMsg(Smsgs_cmdIds_t type, uint16_t dstShortAddr, bool rxOnIdle,
 static void generateConfigRequests(void)
 {
     int x;
+
+    if(CERTIFICATION_TEST_MODE)
+    {
+        /* In Certification mode only back to back uplink
+         * data traffic shall be supported*/
+        return;
+    }
 
     /* Clear any timed out transactions */
     for(x = 0; x < CONFIG_MAX_DEVICES; x++)
@@ -1253,6 +1341,12 @@ static void generateTrackingRequests(void)
     /* Run through all of the devices, looking for previous activity */
     for(x = 0; x < CONFIG_MAX_DEVICES; x++)
     {
+        if(CERTIFICATION_TEST_MODE)
+        {
+            /* In Certification mode only back to back uplink
+             * data traffic shall be supported*/
+            return;
+        }
         /* Make sure the entry is valid. */
         if((Cllc_associatedDevList[x].shortAddr != CSF_INVALID_SHORT_ADDR)
              && (Cllc_associatedDevList[x].status & CLLC_ASSOC_STATUS_ALIVE))
@@ -1344,16 +1438,13 @@ static void generateTrackingRequests(void)
                     }
                 }
 
-                /* Was device found? */
-                if(pDev)
+                if(pDev == NULL)
                 {
-                    sendTrackingRequest(pDev);
+                    /* Another device wasn't found, send to same device */
+                    pDev = &Cllc_associatedDevList[x];
                 }
-                else
-                {
-                    /* No device found, Setup delay for next tracking message */
-                    Csf_setTrackingClock(TRACKING_DELAY_TIME);
-                }
+
+                sendTrackingRequest(pDev);
 
                 /* Only do one at a time */
                 return;
@@ -1390,19 +1481,27 @@ static void sendTrackingRequest(Cllc_associated_devices_t *pDev)
     uint8_t cmdId = Smsgs_cmdIds_trackingReq;
 
     /* Send the Tracking Request */
-    sendMsg(Smsgs_cmdIds_trackingReq, pDev->shortAddr,
+   if((sendMsg(Smsgs_cmdIds_trackingReq, pDev->shortAddr,
             pDev->capInfo.rxOnWhenIdle,
             (SMSGS_TRACKING_REQUEST_MSG_LENGTH),
-            &cmdId);
+            &cmdId)) == true)
+    {
+        /* Mark as Tracking Request sent */
+        pDev->status |= ASSOC_TRACKING_SENT;
 
-    /* Mark as Tracking Request sent */
-    pDev->status |= ASSOC_TRACKING_SENT;
+        /* Setup Timeout for response */
+        Csf_setTrackingClock(TRACKING_TIMEOUT_TIME);
 
-    /* Setup Timeout for response */
-    Csf_setTrackingClock(TRACKING_TIMEOUT_TIME);
-
-    /* Update stats */
-    Collector_statistics.trackingRequestAttempts++;
+        /* Update stats */
+        Collector_statistics.trackingRequestAttempts++;
+    }
+    else
+    {
+        ApiMac_sAddr_t devAddr;
+        devAddr.addrMode = ApiMac_addrType_short;
+        devAddr.addr.shortAddr = pDev->shortAddr;
+        processDataRetry(&devAddr);
+    }
 }
 
 /*!
@@ -1463,27 +1562,25 @@ static void processDataRetry(ApiMac_sAddr_t *pAddr)
         pItem = findDevice(pAddr);
         if(pItem)
         {
-            if((pItem->status & CLLC_ASSOC_STATUS_ALIVE) == 0)
-            {
-                /* It was missing */
-                pItem->status |= CLLC_ASSOC_STATUS_ALIVE;
+            /* Set device status to alive */
+            pItem->status |= CLLC_ASSOC_STATUS_ALIVE;
 
-                /* Check to see if we need to send it a config */
-                if((pItem->status & (ASSOC_CONFIG_RSP | ASSOC_CONFIG_SENT
-                   | ASSOC_TRACKING_SENT| ASSOC_TRACKING_RETRY)) == 0)
+            /* Check to see if we need to send it a config */
+            if((pItem->status & (ASSOC_CONFIG_RSP | ASSOC_CONFIG_SENT)) == 0)
+            {
+                processConfigRetry();
+            }
+            /* Check to see if we need to send it a tracking message */
+            if((pItem->status & (ASSOC_TRACKING_SENT| ASSOC_TRACKING_RETRY)) == 0)
+            {
+                /* Make sure we aren't already doing a tracking message */
+                if(((Collector_events & COLLECTOR_TRACKING_TIMEOUT_EVT) == 0)
+                    && (Csf_isTrackingTimerActive() == false)
+                    && (findDeviceStatusBit(ASSOC_TRACKING_MASK,
+                                            ASSOC_TRACKING_SENT) == NULL))
                 {
-                    if(CONFIG_MAC_BEACON_ORDER != NON_BEACON_ORDER)
-                    {
-                        /* Make sure we aren't already doing a tracking message */
-                        if(((Collector_events & ASSOC_TRACKING_SENT) == 0)
-                              && (findDeviceStatusBit(ASSOC_TRACKING_MASK,
-                              ASSOC_TRACKING_SENT) == NULL))
-                        {
-                            /* Setup for next tracking */
-                            Csf_setTrackingClock( TRACKING_DELAY_TIME);
-                        }
-                    }
-                    processConfigRetry();
+                    /* Setup for next tracking */
+                    Csf_setTrackingClock(TRACKING_DELAY_TIME);
                 }
             }
         }

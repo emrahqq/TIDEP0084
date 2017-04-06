@@ -39,8 +39,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
  *****************************************************************************/
 
 #if !defined(SMSGS_PROTO_H)
@@ -107,6 +107,24 @@ void free_SmsgsMsgStatsField(SmsgsMsgStatsField *pThis);
 void free_SmsgsTempSensorField(SmsgsTempSensorField *pThis);
 
 /*!
+ * @brief Release memory for a pressure message
+ * @param pThis - data to free
+ */
+void free_SmsgsPressureSensorField(SmsgsPressureSensorField *pThis);
+
+/*!
+ * @brief Release memory for a motion message
+ * @param pThis - data to free
+ */
+void free_SmsgsMotionSensorField(SmsgsMotionSensorField *pThis);
+
+/*!
+ * @brief Release memory for a battery message
+ * @param pThis - data to free
+ */
+void free_SmsgsBatterySensorField(SmsgsBatterySensorField *pThis);
+
+/*!
  * @brief convert a config setting message
  * @param pThis - data to convert to the protobuf format
  * @returns data in protobuf format
@@ -130,10 +148,6 @@ SmsgsHumiditySensorField *copy_Smsgs_humiditySensorField(
 SmsgsLightSensorField *copy_Smsgs_lightSensorField(
     const Smsgs_lightSensorField_t *pThis);
 
-/* Suyash 
-* @brief
-*/
-SmsgsPressureSensorField *copy_Smsgs_pressureSensorField(const Smsgs_pressureSensorField_t *pThis);
 /*!
  * @brief convert a config msg stats message
  * @param pThis - data to convert to the protobuf format
@@ -149,6 +163,31 @@ SmsgsMsgStatsField *copy_Smsgs_msgStatsField(
  */
 SmsgsTempSensorField *copy_Smsgs_tempSensorField(
     const Smsgs_tempSensorField_t *pThis);
+
+/*!
+ * @brief convert pressure message
+ * @param pThis - data to convert to the protobuf format
+ * @returns data in protobuf format
+ */
+SmsgsPressureSensorField *copy_Smsgs_pressureSensorField(
+    const Smsgs_pressureSensorField_t *pThis);
+
+/*!
+ * @brief convert motion message
+ * @param pThis - data to convert to the protobuf format
+ * @returns data in protobuf format
+ */
+SmsgsMotionSensorField *copy_Smsgs_motionSensorField(
+    const Smsgs_motionSensorField_t *pThis);
+
+/*!
+ * @brief convert battery message
+ * @param pThis - data to convert to the protobuf format
+ * @returns data in protobuf format
+ */
+SmsgsBatterySensorField *copy_Smsgs_batterySensorField(
+    const Smsgs_batterySensorField_t *pThis);
+
 
 #endif
 

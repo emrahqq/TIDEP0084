@@ -199,6 +199,23 @@ Device.prototype.rxSensorData = function (sensorData) {
 
     }
 
+    if (sensorData.sDataMsg.frameControl & 
+        dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_motionSensor) {
+      this.motionsensor = {
+        isMotion: sensorData.sDataMsg.motionSensor.isMotion
+      };
+      updateDigInSensor(this.so, 'Motion Sensor', 0, sensorData.sDataMsg.motionSensor.isMotion, 'Motion Sensor');
+    }
+    if (sensorData.sDataMsg.frameControl & 
+        dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_batterySensor) {
+      this.batterysensor = {
+        voltageValue: sensorData.sDataMsg.batterySensor.voltageValue
+      };
+
+      updateSensor(this.so, 'voltage', 0, sensorData.sDataMsg.batterySensor.voltageValue, 'mV');
+
+    }
+
 
 
     /* update rssi information */
@@ -232,6 +249,25 @@ Device.prototype.rxConfigRspInd = function (devConfigData) {
             device.humiditysensor = {
                 temp: 0,
                 humidity: 0
+            };
+        }
+        if (devConfigData.sConfigMsg.frameControl & 
+          dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_pressureSensor){
+            device.pressuresensor = {
+              tempValue: 0,
+              pressureValue: 0
+            };
+        }
+        if (devConfigData.sConfigMsg.frameControl &
+          dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_motionSensor) {
+          device.motionsensor = {
+            isMotion: 0
+          };
+        }
+       if (devConfigData.sConfigMsg.frameControl & 
+        dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_batterySensor) {
+            device.batterysensor = {
+                voltageValue: 0
             };
         }
         device.reportingInterval = devConfigData.sConfigMsg.reportingInterval;

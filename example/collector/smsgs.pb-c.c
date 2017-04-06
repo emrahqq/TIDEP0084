@@ -351,6 +351,49 @@ void   smsgs_light_sensor_field__free_unpacked
   assert(message->base.descriptor == &smsgs_light_sensor_field__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
+void   smsgs_humidity_sensor_field__init
+                     (SmsgsHumiditySensorField         *message)
+{
+  static SmsgsHumiditySensorField init_value = SMSGS_HUMIDITY_SENSOR_FIELD__INIT;
+  *message = init_value;
+}
+size_t smsgs_humidity_sensor_field__get_packed_size
+                     (const SmsgsHumiditySensorField *message)
+{
+  assert(message->base.descriptor == &smsgs_humidity_sensor_field__descriptor);
+  return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
+}
+size_t smsgs_humidity_sensor_field__pack
+                     (const SmsgsHumiditySensorField *message,
+                      uint8_t       *out)
+{
+  assert(message->base.descriptor == &smsgs_humidity_sensor_field__descriptor);
+  return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
+}
+size_t smsgs_humidity_sensor_field__pack_to_buffer
+                     (const SmsgsHumiditySensorField *message,
+                      ProtobufCBuffer *buffer)
+{
+  assert(message->base.descriptor == &smsgs_humidity_sensor_field__descriptor);
+  return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
+}
+SmsgsHumiditySensorField *
+       smsgs_humidity_sensor_field__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data)
+{
+  return (SmsgsHumiditySensorField *)
+     protobuf_c_message_unpack (&smsgs_humidity_sensor_field__descriptor,
+                                allocator, len, data);
+}
+void   smsgs_humidity_sensor_field__free_unpacked
+                     (SmsgsHumiditySensorField *message,
+                      ProtobufCAllocator *allocator)
+{
+  assert(message->base.descriptor == &smsgs_humidity_sensor_field__descriptor);
+  protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
+}
 void   smsgs_pressure_sensor_field__init
                      (SmsgsPressureSensorField         *message)
 {
@@ -394,47 +437,90 @@ void   smsgs_pressure_sensor_field__free_unpacked
   assert(message->base.descriptor == &smsgs_pressure_sensor_field__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
-void   smsgs_humidity_sensor_field__init
-                     (SmsgsHumiditySensorField         *message)
+void   smsgs_motion_sensor_field__init
+                     (SmsgsMotionSensorField         *message)
 {
-  static SmsgsHumiditySensorField init_value = SMSGS_HUMIDITY_SENSOR_FIELD__INIT;
+  static SmsgsMotionSensorField init_value = SMSGS_MOTION_SENSOR_FIELD__INIT;
   *message = init_value;
 }
-size_t smsgs_humidity_sensor_field__get_packed_size
-                     (const SmsgsHumiditySensorField *message)
+size_t smsgs_motion_sensor_field__get_packed_size
+                     (const SmsgsMotionSensorField *message)
 {
-  assert(message->base.descriptor == &smsgs_humidity_sensor_field__descriptor);
+  assert(message->base.descriptor == &smsgs_motion_sensor_field__descriptor);
   return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
 }
-size_t smsgs_humidity_sensor_field__pack
-                     (const SmsgsHumiditySensorField *message,
+size_t smsgs_motion_sensor_field__pack
+                     (const SmsgsMotionSensorField *message,
                       uint8_t       *out)
 {
-  assert(message->base.descriptor == &smsgs_humidity_sensor_field__descriptor);
+  assert(message->base.descriptor == &smsgs_motion_sensor_field__descriptor);
   return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
 }
-size_t smsgs_humidity_sensor_field__pack_to_buffer
-                     (const SmsgsHumiditySensorField *message,
+size_t smsgs_motion_sensor_field__pack_to_buffer
+                     (const SmsgsMotionSensorField *message,
                       ProtobufCBuffer *buffer)
 {
-  assert(message->base.descriptor == &smsgs_humidity_sensor_field__descriptor);
+  assert(message->base.descriptor == &smsgs_motion_sensor_field__descriptor);
   return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
 }
-SmsgsHumiditySensorField *
-       smsgs_humidity_sensor_field__unpack
+SmsgsMotionSensorField *
+       smsgs_motion_sensor_field__unpack
                      (ProtobufCAllocator  *allocator,
                       size_t               len,
                       const uint8_t       *data)
 {
-  return (SmsgsHumiditySensorField *)
-     protobuf_c_message_unpack (&smsgs_humidity_sensor_field__descriptor,
+  return (SmsgsMotionSensorField *)
+     protobuf_c_message_unpack (&smsgs_motion_sensor_field__descriptor,
                                 allocator, len, data);
 }
-void   smsgs_humidity_sensor_field__free_unpacked
-                     (SmsgsHumiditySensorField *message,
+void   smsgs_motion_sensor_field__free_unpacked
+                     (SmsgsMotionSensorField *message,
                       ProtobufCAllocator *allocator)
 {
-  assert(message->base.descriptor == &smsgs_humidity_sensor_field__descriptor);
+  assert(message->base.descriptor == &smsgs_motion_sensor_field__descriptor);
+  protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
+}
+void   smsgs_battery_sensor_field__init
+                     (SmsgsBatterySensorField         *message)
+{
+  static SmsgsBatterySensorField init_value = SMSGS_BATTERY_SENSOR_FIELD__INIT;
+  *message = init_value;
+}
+size_t smsgs_battery_sensor_field__get_packed_size
+                     (const SmsgsBatterySensorField *message)
+{
+  assert(message->base.descriptor == &smsgs_battery_sensor_field__descriptor);
+  return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
+}
+size_t smsgs_battery_sensor_field__pack
+                     (const SmsgsBatterySensorField *message,
+                      uint8_t       *out)
+{
+  assert(message->base.descriptor == &smsgs_battery_sensor_field__descriptor);
+  return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
+}
+size_t smsgs_battery_sensor_field__pack_to_buffer
+                     (const SmsgsBatterySensorField *message,
+                      ProtobufCBuffer *buffer)
+{
+  assert(message->base.descriptor == &smsgs_battery_sensor_field__descriptor);
+  return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
+}
+SmsgsBatterySensorField *
+       smsgs_battery_sensor_field__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data)
+{
+  return (SmsgsBatterySensorField *)
+     protobuf_c_message_unpack (&smsgs_battery_sensor_field__descriptor,
+                                allocator, len, data);
+}
+void   smsgs_battery_sensor_field__free_unpacked
+                     (SmsgsBatterySensorField *message,
+                      ProtobufCAllocator *allocator)
+{
+  assert(message->base.descriptor == &smsgs_battery_sensor_field__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
 void   smsgs_msg_stats_field__init
@@ -987,6 +1073,57 @@ const ProtobufCMessageDescriptor smsgs_light_sensor_field__descriptor =
   (ProtobufCMessageInit) smsgs_light_sensor_field__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
+static const ProtobufCFieldDescriptor smsgs_humidity_sensor_field__field_descriptors[2] =
+{
+  {
+    "temp",
+    1,
+    PROTOBUF_C_LABEL_REQUIRED,
+    PROTOBUF_C_TYPE_UINT32,
+    0,   /* quantifier_offset */
+    offsetof(SmsgsHumiditySensorField, temp),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "humidity",
+    2,
+    PROTOBUF_C_LABEL_REQUIRED,
+    PROTOBUF_C_TYPE_UINT32,
+    0,   /* quantifier_offset */
+    offsetof(SmsgsHumiditySensorField, humidity),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+};
+static const unsigned smsgs_humidity_sensor_field__field_indices_by_name[] = {
+  1,   /* field[1] = humidity */
+  0,   /* field[0] = temp */
+};
+static const ProtobufCIntRange smsgs_humidity_sensor_field__number_ranges[1 + 1] =
+{
+  { 1, 0 },
+  { 0, 2 }
+};
+const ProtobufCMessageDescriptor smsgs_humidity_sensor_field__descriptor =
+{
+  PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
+  "Smsgs_humiditySensorField",
+  "SmsgsHumiditySensorField",
+  "SmsgsHumiditySensorField",
+  "",
+  sizeof(SmsgsHumiditySensorField),
+  2,
+  smsgs_humidity_sensor_field__field_descriptors,
+  smsgs_humidity_sensor_field__field_indices_by_name,
+  1,  smsgs_humidity_sensor_field__number_ranges,
+  (ProtobufCMessageInit) smsgs_humidity_sensor_field__init,
+  NULL,NULL,NULL    /* reserved[123] */
+};
 static const ProtobufCFieldDescriptor smsgs_pressure_sensor_field__field_descriptors[2] =
 {
   {
@@ -1038,55 +1175,80 @@ const ProtobufCMessageDescriptor smsgs_pressure_sensor_field__descriptor =
   (ProtobufCMessageInit) smsgs_pressure_sensor_field__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor smsgs_humidity_sensor_field__field_descriptors[2] =
+static const ProtobufCFieldDescriptor smsgs_motion_sensor_field__field_descriptors[1] =
 {
   {
-    "temp",
+    "isMotion",
+    1,
+    PROTOBUF_C_LABEL_REQUIRED,
+    PROTOBUF_C_TYPE_BOOL,
+    0,   /* quantifier_offset */
+    offsetof(SmsgsMotionSensorField, ismotion),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+};
+static const unsigned smsgs_motion_sensor_field__field_indices_by_name[] = {
+  0,   /* field[0] = isMotion */
+};
+static const ProtobufCIntRange smsgs_motion_sensor_field__number_ranges[1 + 1] =
+{
+  { 1, 0 },
+  { 0, 1 }
+};
+const ProtobufCMessageDescriptor smsgs_motion_sensor_field__descriptor =
+{
+  PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
+  "Smsgs_motionSensorField",
+  "SmsgsMotionSensorField",
+  "SmsgsMotionSensorField",
+  "",
+  sizeof(SmsgsMotionSensorField),
+  1,
+  smsgs_motion_sensor_field__field_descriptors,
+  smsgs_motion_sensor_field__field_indices_by_name,
+  1,  smsgs_motion_sensor_field__number_ranges,
+  (ProtobufCMessageInit) smsgs_motion_sensor_field__init,
+  NULL,NULL,NULL    /* reserved[123] */
+};
+static const ProtobufCFieldDescriptor smsgs_battery_sensor_field__field_descriptors[1] =
+{
+  {
+    "voltageValue",
     1,
     PROTOBUF_C_LABEL_REQUIRED,
     PROTOBUF_C_TYPE_UINT32,
     0,   /* quantifier_offset */
-    offsetof(SmsgsHumiditySensorField, temp),
-    NULL,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
-    "humidity",
-    2,
-    PROTOBUF_C_LABEL_REQUIRED,
-    PROTOBUF_C_TYPE_UINT32,
-    0,   /* quantifier_offset */
-    offsetof(SmsgsHumiditySensorField, humidity),
+    offsetof(SmsgsBatterySensorField, voltagevalue),
     NULL,
     NULL,
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
 };
-static const unsigned smsgs_humidity_sensor_field__field_indices_by_name[] = {
-  1,   /* field[1] = humidity */
-  0,   /* field[0] = temp */
+static const unsigned smsgs_battery_sensor_field__field_indices_by_name[] = {
+  0,   /* field[0] = voltageValue */
 };
-static const ProtobufCIntRange smsgs_humidity_sensor_field__number_ranges[1 + 1] =
+static const ProtobufCIntRange smsgs_battery_sensor_field__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 2 }
+  { 0, 1 }
 };
-const ProtobufCMessageDescriptor smsgs_humidity_sensor_field__descriptor =
+const ProtobufCMessageDescriptor smsgs_battery_sensor_field__descriptor =
 {
   PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
-  "Smsgs_humiditySensorField",
-  "SmsgsHumiditySensorField",
-  "SmsgsHumiditySensorField",
+  "Smsgs_batterySensorField",
+  "SmsgsBatterySensorField",
+  "SmsgsBatterySensorField",
   "",
-  sizeof(SmsgsHumiditySensorField),
-  2,
-  smsgs_humidity_sensor_field__field_descriptors,
-  smsgs_humidity_sensor_field__field_indices_by_name,
-  1,  smsgs_humidity_sensor_field__number_ranges,
-  (ProtobufCMessageInit) smsgs_humidity_sensor_field__init,
+  sizeof(SmsgsBatterySensorField),
+  1,
+  smsgs_battery_sensor_field__field_descriptors,
+  smsgs_battery_sensor_field__field_indices_by_name,
+  1,  smsgs_battery_sensor_field__number_ranges,
+  (ProtobufCMessageInit) smsgs_battery_sensor_field__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
 static const ProtobufCFieldDescriptor smsgs_msg_stats_field__field_descriptors[11] =
@@ -1308,7 +1470,7 @@ const ProtobufCMessageDescriptor smsgs_config_settings_field__descriptor =
   (ProtobufCMessageInit) smsgs_config_settings_field__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor smsgs_sensor_msg__field_descriptors[8] =
+static const ProtobufCFieldDescriptor smsgs_sensor_msg__field_descriptors[10] =
 {
   {
     "cmdId",
@@ -1406,13 +1568,39 @@ static const ProtobufCFieldDescriptor smsgs_sensor_msg__field_descriptors[8] =
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "motionSensor",
+    9,
+    PROTOBUF_C_LABEL_OPTIONAL,
+    PROTOBUF_C_TYPE_MESSAGE,
+    0,   /* quantifier_offset */
+    offsetof(SmsgsSensorMsg, motionsensor),
+    &smsgs_motion_sensor_field__descriptor,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "batterySensor",
+    10,
+    PROTOBUF_C_LABEL_OPTIONAL,
+    PROTOBUF_C_TYPE_MESSAGE,
+    0,   /* quantifier_offset */
+    offsetof(SmsgsSensorMsg, batterysensor),
+    &smsgs_battery_sensor_field__descriptor,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned smsgs_sensor_msg__field_indices_by_name[] = {
+  9,   /* field[9] = batterySensor */
   0,   /* field[0] = cmdId */
   6,   /* field[6] = configSettings */
   1,   /* field[1] = frameControl */
   4,   /* field[4] = humiditySensor */
   3,   /* field[3] = lightSensor */
+  8,   /* field[8] = motionSensor */
   5,   /* field[5] = msgStats */
   7,   /* field[7] = pressureSensor */
   2,   /* field[2] = tempSensor */
@@ -1420,7 +1608,7 @@ static const unsigned smsgs_sensor_msg__field_indices_by_name[] = {
 static const ProtobufCIntRange smsgs_sensor_msg__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 8 }
+  { 0, 10 }
 };
 const ProtobufCMessageDescriptor smsgs_sensor_msg__descriptor =
 {
@@ -1430,7 +1618,7 @@ const ProtobufCMessageDescriptor smsgs_sensor_msg__descriptor =
   "SmsgsSensorMsg",
   "",
   sizeof(SmsgsSensorMsg),
-  8,
+  10,
   smsgs_sensor_msg__field_descriptors,
   smsgs_sensor_msg__field_indices_by_name,
   1,  smsgs_sensor_msg__number_ranges,
@@ -1475,7 +1663,7 @@ const ProtobufCEnumDescriptor smsgs_cmd_ids__descriptor =
   smsgs_cmd_ids__value_ranges,
   NULL,NULL,NULL,NULL   /* reserved[1234] */
 };
-static const ProtobufCEnumValue smsgs_data_fields__enum_values_by_number[7] =
+static const ProtobufCEnumValue smsgs_data_fields__enum_values_by_number[9] =
 {
   { "Smsgs_dataFields_tempSensor", "SMSGS_DATA_FIELDS__Smsgs_dataFields_tempSensor", 1 },
   { "Smsgs_dataFields_lightSensor", "SMSGS_DATA_FIELDS__Smsgs_dataFields_lightSensor", 2 },
@@ -1484,15 +1672,19 @@ static const ProtobufCEnumValue smsgs_data_fields__enum_values_by_number[7] =
   { "Smsgs_dataFields_configSettings", "SMSGS_DATA_FIELDS__Smsgs_dataFields_configSettings", 16 },
   { "Smsgs_dataFields_pressureSensor", "SMSGS_DATA_FIELDS__Smsgs_dataFields_pressureSensor", 32 },
   { "Smsgs_dataFields_toggleSettings", "SMSGS_DATA_FIELDS__Smsgs_dataFields_toggleSettings", 48 },
+  { "Smsgs_dataFields_motionSensor", "SMSGS_DATA_FIELDS__Smsgs_dataFields_motionSensor", 64 },
+  { "Smsgs_dataFields_batterySensor", "SMSGS_DATA_FIELDS__Smsgs_dataFields_batterySensor", 128 },
 };
 static const ProtobufCIntRange smsgs_data_fields__value_ranges[] = {
-{1, 0},{4, 2},{8, 3},{16, 4},{32, 5},{48, 6},{0, 7}
+{1, 0},{4, 2},{8, 3},{16, 4},{32, 5},{48, 6},{64, 7},{128, 8},{0, 9}
 };
-static const ProtobufCEnumValueIndex smsgs_data_fields__enum_values_by_name[7] =
+static const ProtobufCEnumValueIndex smsgs_data_fields__enum_values_by_name[9] =
 {
+  { "Smsgs_dataFields_batterySensor", 8 },
   { "Smsgs_dataFields_configSettings", 4 },
   { "Smsgs_dataFields_humiditySensor", 2 },
   { "Smsgs_dataFields_lightSensor", 1 },
+  { "Smsgs_dataFields_motionSensor", 7 },
   { "Smsgs_dataFields_msgStats", 3 },
   { "Smsgs_dataFields_pressureSensor", 5 },
   { "Smsgs_dataFields_tempSensor", 0 },
@@ -1505,11 +1697,11 @@ const ProtobufCEnumDescriptor smsgs_data_fields__descriptor =
   "Smsgs_dataFields",
   "SmsgsDataFields",
   "",
-  7,
+  9,
   smsgs_data_fields__enum_values_by_number,
-  7,
+  9,
   smsgs_data_fields__enum_values_by_name,
-  6,
+  8,
   smsgs_data_fields__value_ranges,
   NULL,NULL,NULL,NULL   /* reserved[1234] */
 };

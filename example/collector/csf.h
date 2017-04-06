@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Name: TI-15.4Stack Linux x64 SDK ENG$
+ $Release Date: Mar 08, 2017 (2.01.00.10)$
  *****************************************************************************/
 #ifndef CSF_H
 #define CSF_H
@@ -110,10 +110,10 @@ extern void Csf_processEvents(void);
 extern bool Csf_getNetworkInformation(Llc_netInfo_t *pInfo);
 
 /*!
- * @brief       The application calls this function to indicate that it has
+ * @brief       The application calls this function to indicate that it has 
  *              started or restored the device in a network.
  *
- *              The information will be saved and used to determine if a
+ *              The information will be saved and used to determine if a 
  *              network was already started and should be restored instead
  *              of started.
  *
@@ -189,7 +189,7 @@ extern void Csf_deviceSensorDataUpdate(ApiMac_sAddr_t *pSrcAddr, int8_t rssi,
 extern void Csf_toggleResponseReceived(ApiMac_sAddr_t *pSrcAddr, bool ledState);
 
 /*!
- * @brief       The application calls this function to indicate that the
+ * @brief       The application calls this function to indicate that the 
  *              Coordinator's state has changed.
  *
  * @param       state - new state
@@ -359,6 +359,13 @@ extern bool Csf_addBlackListItem(ApiMac_sAddr_t *pAddr);
  * @return      true if active, false if not active
  */
 extern bool Csf_isConfigTimerActive(void);
+
+/*!
+ * @brief       Check if tracking timer is active
+ *
+ * @return      true if active, false if not active
+ */
+extern bool Csf_isTrackingTimerActive(void);
 
 #ifdef __cplusplus
 }
