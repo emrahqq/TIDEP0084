@@ -9,25 +9,25 @@
 
  ******************************************************************************
  $License: BSD3 2016 $
-  
+
    Copyright (c) 2015, Texas Instruments Incorporated
    All rights reserved.
-  
+
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
-  
+
    *  Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
-  
+
    *  Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-  
+
    *  Neither the name of Texas Instruments Incorporated nor the names of
       its contributors may be used to endorse or promote products derived
       from this software without specific prior written permission.
-  
+
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
    THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -45,18 +45,40 @@
  *****************************************************************************/
 
 var util = require('util');
-var protobuf = require("protocol-buffers");
 var fs = require("fs");
 
-/* set-up to decode/encode proto messages */
-var ntimac_pb = protobuf(fs.readFileSync('appClient/protofiles/appsrv.proto'));
+/* Collector states */
+var cllc_states = Object.freeze({
+    /* Powered up, not started and waiting for user to start */
+    initWaiting: 0,
+    /* Starting coordinator, scanning and selecting the best parameters */
+    startingCoordinator: 1,
+    /* Powered up, found network information, and restoring device in network */
+    initRestoringCoordinator: 2,
+    /* Device is operating as coordinator */
+    started: 3,
+    /* Device is restored as coordinator in the network */
+    restored: 4,
+    /* Joining allowed state has changed to allowed */
+    joiningAllowed: 5,
+    /* Joining allowed state has changed to not allowed */
+    joiningNotAllowed: 6
+});
+
+/* Network Modes */
+var nwkModes = Object.freeze({
+    BEACON_ENABLED: 1,
+    NON_BEACON: 2,
+    FREQUENCY_HOPPING: 3
+});
+
 
 /*!
  * @brief      Constructor for network Information object
  *
  * @param      networkInfo - object with network information
  *
- * @return     network information object
+ * @retun      network information object
  */
 function NwkInfo(networkInfo) {
     var nwkInfo = this;
@@ -67,7 +89,7 @@ function NwkInfo(networkInfo) {
         nwkInfo.fh = networkInfo.nwkinfo.nwkInfo.fh;
         /* set network channel information */
         nwkInfo.channel = networkInfo.nwkinfo.nwkInfo.channel;
-        /* set the PAN Coordinator device information */
+        /* set the PAN Coordinator device informatoin */
         nwkInfo.panCoord = {
             panId: networkInfo.nwkinfo.nwkInfo.devInfo.panID,
             shortAddress: networkInfo.nwkinfo.nwkInfo.devInfo.shortAddress,
@@ -76,13 +98,13 @@ function NwkInfo(networkInfo) {
         /* set the security information */
         nwkInfo.securityEnabled = networkInfo.nwkinfo.securityEnabled;
         /* set network mode */
-        if (networkInfo.nwkinfo.networkMode == ntimac_pb.nwkMode.BEACON_ENABLED) {
+        if (networkInfo.nwkinfo.networkMode == nwkModes.BEACON_ENABLED) {
             nwkInfo.networkMode = "Beacon Enabled"
         }
-        else if (networkInfo.nwkinfo.networkMode == ntimac_pb.nwkMode.NON_BEACON) {
+        else if (networkInfo.nwkinfo.networkMode == nwkModes.NON_BEACON) {
             nwkInfo.networkMode = "Non Beacon";
         }
-        else if (networkInfo.nwkinfo.networkMode == ntimac_pb.nwkMode.FREQUENCY_HOPPING) {
+        else if (networkInfo.nwkinfo.networkMode == nwkModes.FREQUENCY_HOPPING) {
             nwkInfo.networkMode = "Freq Hopping";
         }
         else {
@@ -90,30 +112,30 @@ function NwkInfo(networkInfo) {
         }
         /* set network state */
         switch (networkInfo.nwkinfo.state) {
-            case ntimac_pb.Cllc_states.Cllc_states_initWaiting:
+            case cllc_states.initWaiting:
                 /* Application is waiting for user input
                 to start the application */
                 nwkInfo.state = "waiting";
                 break;
-            case ntimac_pb.Cllc_states.Cllc_states_startingCoordinator:
+            case cllc_states.startingCoordinator:
                 /* Application is working to start the network */
                 nwkInfo.state = "starting";
                 break;
-            case ntimac_pb.Cllc_states.Cllc_states_initRestoringCoordinator:
+            case cllc_states.initRestoringCoordinator:
                 /* Application is working to restore the network
                 from previously stored informatoin */
                 nwkInfo.state = "restoring";
                 break;
-            case ntimac_pb.Cllc_states.Cllc_states_started:
-            case ntimac_pb.Cllc_states.Cllc_states_restored:
+            case cllc_states.started:
+            case cllc_states.restored:
                 /* Network is started */
                 nwkInfo.state = "started";
                 break;
-            case ntimac_pb.Cllc_states.Cllc_states_joiningAllowed:
+            case cllc_states.joiningAllowed:
                 /* Network is open for new devices to join */
                 nwkInfo.state = "open";
                 break;
-            case ntimac_pb.Cllc_states.Cllc_states_joiningNotAllowed:
+            case cllc_states.joiningNotAllowed:
                 /* Network is closed for new devices to join */
                 nwkInfo.state = "close";
                 break;
@@ -133,7 +155,7 @@ NwkInfo.prototype.updateNwkInfo = function (networkInfo) {
     self.fh = networkInfo.nwkinfo.nwkInfo.fh;
     /* set network channel information */
     self.channel = networkInfo.nwkinfo.nwkInfo.channel;
-    /* set the PAN Coordinator device information */
+    /* set the PAN Coordinator device informatoin */
     self.panCoord = {
         panId: networkInfo.nwkinfo.nwkInfo.devInfo.panID,
         shortAddress: networkInfo.nwkinfo.nwkInfo.devInfo.shortAddress,
@@ -143,30 +165,30 @@ NwkInfo.prototype.updateNwkInfo = function (networkInfo) {
     self.networkMode = networkInfo.nwkinfo.networkMode;
     /* set network state */
     switch (networkInfo.nwkinfo.state) {
-        case ntimac_pb.Cllc_states.Cllc_states_initWaiting:
+        case cllc_states.initWaiting://ntimac_pb.Cllc_states.Cllc_states_initWaiting
             /* Application is waiting for user input
             to start the application */
             self.state = "waiting";
             break;
-        case ntimac_pb.Cllc_states.Cllc_states_startingCoordinator:
+        case cllc_states.startingCoordinator://ntimac_pb.Cllc_states.Cllc_states_startingCoordinator
             /* Application is working to start the network */
             self.state = "starting";
             break;
-        case ntimac_pb.Cllc_states.Cllc_states_initRestoringCoordinator:
+        case cllc_states.initRestoringCoordinator://ntimac_pb.Cllc_states.Cllc_states_initRestoringCoordinator
             /* Application is working to restore the network
             from previously stored informatoin */
             self.state = "restoring";
             break;
-        case ntimac_pb.Cllc_states.Cllc_states_started:
-        case ntimac_pb.Cllc_states.Cllc_states_restored:
+        case cllc_states.started://ntimac_pb.Cllc_states.Cllc_states_started
+        case cllc_states.restored://ntimac_pb.Cllc_states.Cllc_states_restored
             /* Network is started */
             self.state = "started";
             break;
-        case ntimac_pb.Cllc_states.Cllc_states_joiningAllowed:
+        case cllc_states.joiningAllowed://ntimac_pb.Cllc_states.Cllc_states_joiningAllowed
             /* Network is open for new devices to join */
             self.state = "open";
             break;
-        case ntimac_pb.Cllc_states.Cllc_states_joiningNotAllowed:
+        case cllc_states.joiningNotAllowed://ntimac_pb.Cllc_states.Cllc_states_joiningNotAllowed
             /* Network is closed for new devices to join */
             self.state = "close";
             break;
@@ -183,30 +205,30 @@ NwkInfo.prototype.updateNwkState = function (nState) {
     var self = this;
     /* set network state */
     switch (nState.state) {
-        case ntimac_pb.Cllc_states.Cllc_states_initWaiting:
+        case cllc_states.initWaiting:
             /* Application is waiting for user input
             to start the application */
             self.state = "waiting";
             break;
-        case ntimac_pb.Cllc_states.Cllc_states_startingCoordinator:
+        case cllc_states.startingCoordinator:
             /* Application is working to start the network */
             self.state = "starting";
             break;
-        case ntimac_pb.Cllc_states.Cllc_states_initRestoringCoordinator:
+        case cllc_states.initRestoringCoordinator:
             /* Application is working to restore the network
             from previously stored informatoin */
             self.state = "restoring";
             break;
-        case ntimac_pb.Cllc_states.Cllc_states_started:
-        case ntimac_pb.Cllc_states.Cllc_states_restored:
+        case cllc_states.started://ntimac_pb.Cllc_states.Cllc_states_started
+        case cllc_states.restored://ntimac_pb.Cllc_states.Cllc_states_restored
             /* Network is started */
             self.state = "started";
             break;
-        case ntimac_pb.Cllc_states.Cllc_states_joiningAllowed:
+        case cllc_states.joiningAllowed:
             /* Network is open for new devices to join */
             self.state = "open";
             break;
-        case ntimac_pb.Cllc_states.Cllc_states_joiningNotAllowed:
+        case cllc_states.joiningNotAllowed:
             /* Network is closed for new devices to join */
             self.state = "close";
             break;

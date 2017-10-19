@@ -9,25 +9,25 @@
 
  ******************************************************************************
  $License: BSD3 2016 $
-  
+
    Copyright (c) 2015, Texas Instruments Incorporated
    All rights reserved.
-  
+
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
-  
+
    *  Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
-  
+
    *  Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-  
+
    *  Neither the name of Texas Instruments Incorporated nor the names of
       its contributors may be used to endorse or promote products derived
       from this software without specific prior written permission.
-  
+
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
    THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -44,7 +44,14 @@
  $Release Date: July 14, 2016 (2.00.00.30)$
  *****************************************************************************/
 var AppClient = require("./appClient/appclient.js");
-var CloudAdapter = require("./cloudAdapter/awsCloudAdapter.js");
+var AwsAdapter = require("./cloudAdapter/awsCloudAdapter.js");
+var IbmAdapter = require("./cloudAdapter/ibmCloudAdapter.js");
+var QuickstartAdapter = require("./cloudAdapter/ibmQuickstartAdapter.js");
+var LocalAdapter = require("./webserver/webserver.js");
+var isAws = false;
+var isIbm = false;
+var isQuickstart = false;
+var isLocal = false;
 
 /*!
  * @brief      Constructor for IoT gateway
@@ -54,13 +61,44 @@ var CloudAdapter = require("./cloudAdapter/awsCloudAdapter.js");
  * @return      none
  */
 function Gateway() {
+	if (process.argv.length < 3)
+	{
+		console.log("Usage: node "+__filename+"'cloud service'");
+		console.log("Cloud service being 'aws' or 'ibm'");
+		process.exit(1);
+	}
 	var appClient = new AppClient();
-	var cloudAdapter = new CloudAdapter();
-	
+	var cloudAdapter = {};
+	if (process.argv[2].toLowerCase() == "aws"){
+		console.log("Starting AWS Cloud Adapter");
+		cloudAdapter = new AwsAdapter();
+		isAws = true;
+
+	}
+	else if (process.argv[2].toLowerCase() == "ibm"){
+		console.log("Starting IBM Cloud Adapter");
+		cloudAdapter = new IbmAdapter();
+		isIbm = true;
+	}
+	else if (process.argv[2].toLowerCase() == "quickstart"){
+		console.log("Starting IBM Quickstart Adapter");
+		cloudAdapter = new QuickstartAdapter();
+		isQuickstart = true;
+	}
+	else if (process.argv[2].toLowerCase() == "localhost"){
+		console.log("Starting Localhost Gateway");
+		cloudAdapter = new LocalAdapter();
+		isLocal = true;
+	}
+	else {
+		console.log(process.argv[2]+" is not a supported cloud service.\nPlease use 'aws' or 'ibm'");
+		process.exit(1);
+	}
+
 	/* Used for network startup, wait until we receive a network
 	 * info update and a device array before sending the first
 	 * Network Information Message Type to the Cloud
-	 */	
+	 */
 	var gotNwkUpdate = false;
 	var gotDevArray = false;
 
@@ -68,30 +106,66 @@ function Gateway() {
 	 * network and device information we need and also checks if we are
 	 * connected to the cloud yet. Once all of that is true, we send
 	 * the first Network Information Message Type to the Cloud and
-	 * then clear the interval so the function won't repeat. 
+	 * then clear the interval so the function won't repeat.
 	 */
 	var intervalID = setInterval( function() {
 		if (cloudAdapter.connected && gotNwkUpdate && gotDevArray){
 			var nwkInfo = formatNwkInfoMsg(appClient.nwkInfo, appClient.connectedDeviceList);
 			cloudAdapter.cloudAdapter_sendNetworkInfoMsg(nwkInfo);
-			console.log('Visit the following url in your web browser to view the dashboard:');
-			console.log('iotdash.stackbuilder.us/#/dashboard/home?net=' + nwkInfo.ext_addr);
+			if (isAws){
+				console.log('Visit the following url in your web browser to view the dashboard:');
+				console.log('iotdash.stackbuilder.us/#/dashboard/home?net=' + nwkInfo.ext_addr);
+			}
+			if (isQuickstart){
+				console.log("Quickstart DevID="+nwkInfo.ext_addr);
+			}
 			clearInterval(intervalID);
 		}
 	}, 1000);
 
-	/* Allows the Cloud to open or close the wireless network for new devices joins */	
+	/* Allows the Cloud to open or close the wireless network for new devices joins */
 	cloudAdapter.on('updateNetworkState', function (data) {
 		appClient.appC_setPermitJoin(data);
 	});
 
 	/* Allows the Cloud to sent toggleLED messages to devices in the wireless network */
 	cloudAdapter.on('deviceActuation', function (data) {
+		console.log("deviceActuation");
+		console.log(data);
 		appClient.appC_sendToggle(data);
 	});
 
+	/* rcvd send config req */
+	cloudAdapter.on('sendConfig', function (data) {
+		/* send config request */
+		appClient.appC_sendConfig(data);
+	});
+
+	/* rcvd send toggle req */
+	cloudAdapter.on('sendToggle', function (data) {
+		/* send toggle request */
+		appClient.appC_sendToggle(data);
+	});
+
+	/* rcvd getDevArray Req */
+	cloudAdapter.on('getDevArrayReq', function (data) {
+		/* process the request */
+		appClient.appC_getDeviceArray();
+	});
+
+	/* rcvd getNwkInfoReq */
+	cloudAdapter.on('getNwkInfoReq', function (data) {
+		/* process the request */
+		appClient.appC_getNwkInfo();
+	});
+
+	cloudAdapter.on('setJoinPermitReq', function (data) {
+		/* process the request */
+		appClient.appC_setPermitJoin(data);
+	});
+
 	/* A nwkUpdate (with the updated state) is also sent when the state changes so we don't
-	 * need to take any action here 
+	 * need to take any action here
 	 */
 	appClient.on('permitJoinCnf', function (data) {
 		console.log('gateway_permitJoinCnf');
@@ -109,7 +183,7 @@ function Gateway() {
 		var nwkInfo = formatNwkInfoMsg(appClient.nwkInfo, appClient.connectedDeviceList);
 		cloudAdapter.cloudAdapter_sendNetworkInfoMsg(nwkInfo);
 	});
-	
+
 	/* Send Network Information Message to Cloud Adapter */
 	appClient.on('getdevArrayRsp', function () {
 		gotDevArray = true;
@@ -118,7 +192,7 @@ function Gateway() {
 	});
 
 	/* The Network Information Message Type should be common across Cloud vendors. This function
-	 * formats the message in a generic way. The CloudAdapter can make vendor specific 
+	 * formats the message in a generic way. The CloudAdapter can make vendor specific
 	 * modifications before sending to the Cloud if necessary.
 	 */
 	function formatNwkInfoMsg(nwkInfo, conDevs) {
@@ -127,12 +201,19 @@ function Gateway() {
 		for(i = 0; i < conDevs.length; i++) {
 			var short_addr = '0x' + conDevs[i].shortAddress.toString(16);
 			var ext_addr = '0x' + conDevs[i].extAddress.toString(16);
+			var active = conDevs[i].active;
 			devices.push( {
 				"name" : short_addr,
+				"active" : conDevs[i].active,
+				"rssi" : conDevs[i].rssi,
+				"last_reported" : conDevs[i].lastreported,
 				"short_addr" : short_addr,
 				"ext_addr" : ext_addr,
 				"topic" : 'ti_iot_' + nwkAddress + '_' + ext_addr,
-				"object_list" : conDevs[i].so.objectList()
+				"smart_objects" : conDevs[i].so.dump(function (err, data) {
+						if (!err)
+							return data;
+					})
 			});
 		}
 
@@ -145,19 +226,21 @@ function Gateway() {
 			"security_enabled" : nwkInfo.securityEnabled,
 			"mode" : nwkInfo.networkMode,
 			"state" : nwkInfo.state,
-			"devices" : devices 	
+			"devices" : devices
 		}
-	}	
-	
+	}
+
 	/* The Device Information Message Type should be common across Cloud vendors. This function
-	 * formats the message in a generic way. The CloudAdapter can make vendor specific 
+	 * formats the message in a generic way. The CloudAdapter can make vendor specific
 	 * modifications before sending to the Cloud if necessary.
 	 */
 	function formatDevInfoMsg(dev) {
 		return {
 			"active" : dev.active,
+			"short_addr": '0x' + dev.shortAddress.toString(16),
 			"ext_addr" : '0x' + dev.extAddress.toString(16),
 			"rssi" : dev.rssi,
+			"last_reported" : dev.lastreported,
 			"smart_objects" : dev.so.dump(function (err, data) {
 						if (!err)
 							return data;

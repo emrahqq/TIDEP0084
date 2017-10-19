@@ -9,25 +9,25 @@
 #
 #############################################################
 # $License: BSD3 2016 $
-#  
+#
 #   Copyright (c) 2015, Texas Instruments Incorporated
 #   All rights reserved.
-#  
+#
 #   Redistribution and use in source and binary forms, with or without
 #   modification, are permitted provided that the following conditions
 #   are met:
-#  
+#
 #   *  Redistributions of source code must retain the above copyright
 #      notice, this list of conditions and the following disclaimer.
-#  
+#
 #   *  Redistributions in binary form must reproduce the above copyright
 #      notice, this list of conditions and the following disclaimer in the
 #      documentation and/or other materials provided with the distribution.
-#  
+#
 #   *  Neither the name of Texas Instruments Incorporated nor the names of
 #      its contributors may be used to endorse or promote products derived
 #      from this software without specific prior written permission.
-#  
+#
 #   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 #   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
 #   THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -65,22 +65,22 @@ fi
 if [ x"$nodejs"x == xx ]
 then
 	echo "Cannot find node-js appplication, is it installed?"
-	exit 1
+	exit 6
 fi
 
 if [ ! -f $nodejs ]
 then
 	echo "Cannot find node-js application, is it installed?"
-	exit 1
+	exit 6
 fi
 
 if [ ! -x $nodejs ]
 then
     echo "Cannot find node-js application, is it installed?"
-    exit 1
+    exit 6
 fi
 
-PID=`pidof $nodejs`
+PID=`pgrep node |awk 'NR >= 2'`
 
 if [ "x${PID}x" != "xx" ]
 then
@@ -88,7 +88,7 @@ then
 fi
 
 
-$nodejs ./iot-gateway.js &
+$nodejs ./iot-gateway.js $1&
 PID=$!
 # Wait a couple seconds for it to get started
 # or ... for it to exit
@@ -100,5 +100,5 @@ then
     exit 0
 else
     echo "Cannot start gateway application"
-    exit 1
+    exit 8
 fi

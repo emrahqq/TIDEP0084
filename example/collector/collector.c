@@ -9,25 +9,25 @@
 
  ******************************************************************************
  $License: BSD3 2016 $
-  
+
    Copyright (c) 2015, Texas Instruments Incorporated
    All rights reserved.
-  
+
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
-  
+
    *  Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
-  
+
    *  Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-  
+
    *  Neither the name of Texas Instruments Incorporated nor the names of
       its contributors may be used to endorse or promote products derived
       from this software without specific prior written permission.
-  
+
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
    THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
  *****************************************************************************/
 
 /******************************************************************************
@@ -49,6 +49,7 @@
  *****************************************************************************/
 #include <string.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "util.h"
 #include "api_mac.h"
@@ -57,14 +58,13 @@
 #include "smsgs.h"
 #include "collector.h"
 
+#include "log.h"
+
+#include <oad_protocol.h>
+
 /******************************************************************************
  Constants and definitions
  *****************************************************************************/
-
-#if !defined(STATIC)
-/* make local */
-#define STATIC static
-#endif
 
 #if !defined(CONFIG_AUTO_START)
 #if defined(AUTO_START)
@@ -74,10 +74,10 @@
 #endif
 #endif
 
-/* beacon order for non beacon network */
+/* Beacon order for non beacon network */
 #define NON_BEACON_ORDER      15
 
-/* default MSDU Handle rollover */
+/* Default MSDU Handle rollover */
 #define MSDU_HANDLE_MAX 0x3F
 
 /* App marker in MSDU handle */
@@ -90,15 +90,18 @@
 #define CONFIG_FRAME_CONTROL (Smsgs_dataFields_tempSensor | \
                               Smsgs_dataFields_lightSensor | \
                               Smsgs_dataFields_humiditySensor | \
-                              Smsgs_dataFields_pressureSensor | \
-                              Smsgs_dataFields_motionSensor   | \
-                              Smsgs_dataFields_batteryVoltageSensor | \
                               Smsgs_dataFields_msgStats | \
-                              Smsgs_dataFields_configSettings)
+                              Smsgs_dataFields_configSettings | \
+                              Smsgs_dataFields_pressureSensor | \
+                              Smsgs_dataFields_motionSensor | \
+                              Smsgs_dataFields_batterySensor | \
+                              Smsgs_dataFields_hallEffectSensor | \
+                              Smsgs_dataFields_fanSensor | \
+                              Smsgs_dataFields_doorLockSensor)
 
 #if ((CONFIG_PHY_ID >= APIMAC_MRFSK_STD_PHY_ID_BEGIN) && (CONFIG_PHY_ID <= APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN))
 /* MAC Indirect Persistent Timeout */
-#define INDIRECT_PERSISTENT_TIME 750	
+#define INDIRECT_PERSISTENT_TIME 750
 /* Default configuration reporting interval, in milliseconds */
 #define CONFIG_REPORTING_INTERVAL_DEFAULT 90000
 
@@ -147,6 +150,21 @@ int linux_CONFIG_POLLING_INTERVAL = CONFIG_POLLING_INTERVAL_DEFAULT;
 #define ASSOC_TRACKING_RETRY    0x4000    /* Tracking Req retried */
 #define ASSOC_TRACKING_ERROR    0x8000    /* Tracking Req error */
 #define ASSOC_TRACKING_MASK     0xF000    /* Tracking mask  */
+
+#define MAX_OAD_FILES           10
+
+#ifdef TIRTOS_IN_ROM
+#define IMG_HDR_ADDR            0x04F0
+#else
+#define IMG_HDR_ADDR            0x0000
+#endif
+
+typedef struct
+{
+    uint8_t oad_file_id;
+    char oad_file[256];
+}oadFile_t;
+
 /******************************************************************************
  Global variables
  *****************************************************************************/
@@ -167,15 +185,18 @@ static void *sem;
 static bool restarted = false;
 
 /*! CLLC State */
-STATIC Cllc_states_t cllcState = Cllc_states_initWaiting;
+static Cllc_states_t cllcState = Cllc_states_initWaiting;
 
 /*! Device's PAN ID */
-STATIC uint16_t devicePanId = 0xFFFF;
+static uint16_t devicePanId = 0xFFFF;
 
 /*! Device's Outgoing MSDU Handle values */
-STATIC uint8_t deviceTxMsduHandle = 0;
+static uint8_t deviceTxMsduHandle = 0;
 
-STATIC bool fhEnabled = false;
+static bool fhEnabled = false;
+
+static oadFile_t oad_file_list[MAX_OAD_FILES] = {{0}};
+static uint16_t oadBNumBlocks;
 
 /******************************************************************************
  Local function prototypes
@@ -188,11 +209,14 @@ static ApiMac_assocStatus_t cllcDeviceJoiningCB(
 static void cllcStateChangedCB(Cllc_states_t state);
 static void dataCnfCB(ApiMac_mcpsDataCnf_t *pDataCnf);
 static void dataIndCB(ApiMac_mcpsDataInd_t *pDataInd);
+static void disassocIndCB(ApiMac_mlmeDisassociateInd_t *pDisassocInd);
+static void disassocCnfCB(ApiMac_mlmeDisassociateCnf_t *pDisassocCnf);
 static void processStartEvent(void);
 static void processConfigResponse(ApiMac_mcpsDataInd_t *pDataInd);
 static void processTrackingResponse(ApiMac_mcpsDataInd_t *pDataInd);
 static void processToggleLedResponse(ApiMac_mcpsDataInd_t *pDataInd);
 static void processSensorData(ApiMac_mcpsDataInd_t *pDataInd);
+static void processOadData(ApiMac_mcpsDataInd_t *pDataInd);
 static Cllc_associated_devices_t *findDevice(ApiMac_sAddr_t *pAddr);
 static Cllc_associated_devices_t *findDeviceStatusBit(uint16_t mask, uint16_t statusBit);
 static uint8_t getMsduHandle(Smsgs_cmdIds_t msgType);
@@ -207,6 +231,13 @@ static void pollIndCB(ApiMac_mlmePollInd_t *pPollInd);
 static void processDataRetry(ApiMac_sAddr_t *pAddr);
 static void processConfigRetry(void);
 
+static void oadFwVersionRspCb(void* pSrcAddr, char *fwVersionStr);
+static void oadImgIdentifyRspCb(void* pSrcAddr, uint8_t status);
+static void oadBlockReqCb(void* pSrcAddr, uint8_t imgId, uint16_t blockNum, uint16_t multiBlockSize);
+
+static void* oadRadioAccessAllocMsg(uint32_t size);
+static OADProtocol_Status_t oadRadioAccessPacketSend(void* pDstAddr, uint8_t *pMsg, uint32_t msgLen);
+
 /******************************************************************************
  Callback tables
  *****************************************************************************/
@@ -219,9 +250,9 @@ ApiMac_callbacks_t Collector_macCallbacks =
       /*! Associate Confirmation callback */
       NULL,
       /*! Disassociate Indication callback */
-      NULL,
+      disassocIndCB,
       /*! Disassociate Confirmation callback */
-      NULL,
+      disassocCnfCB,
       /*! Beacon Notify Indication callback */
       NULL,
       /*! Orphan Indication callback */
@@ -252,7 +283,7 @@ ApiMac_callbacks_t Collector_macCallbacks =
       NULL
     };
 
-STATIC Cllc_callbacks_t cllcCallbacks =
+static Cllc_callbacks_t cllcCallbacks =
     {
       /*! Coordinator Started Indication callback */
       cllcStartedCB,
@@ -260,6 +291,28 @@ STATIC Cllc_callbacks_t cllcCallbacks =
       cllcDeviceJoiningCB,
       /*! The state has changed callback */
       cllcStateChangedCB
+    };
+
+static OADProtocol_RadioAccessFxns_t  oadRadioAccessFxns =
+    {
+      oadRadioAccessAllocMsg,
+      oadRadioAccessPacketSend
+    };
+
+static OADProtocol_MsgCBs_t oadMsgCallbacks =
+    {
+      /*! Incoming FW Req */
+      NULL,
+      /*! Incoming FW Version Rsp */
+      oadFwVersionRspCb,
+      /*! Incoming Image Identify Req */
+      NULL,
+      /*! Incoming Image Identify Rsp */
+      oadImgIdentifyRspCb,
+      /*! Incoming OAD Block Req */
+      oadBlockReqCb,
+      /*! Incoming OAD Block Rsp */
+      NULL
     };
 
 /******************************************************************************
@@ -273,6 +326,8 @@ STATIC Cllc_callbacks_t cllcCallbacks =
  */
 void Collector_init(void)
 {
+    OADProtocol_Params_t OADProtocol_params;
+
     /* Initialize the collector's statistics */
     memset(&Collector_statistics, 0, sizeof(Collector_statistics_t));
 
@@ -289,17 +344,23 @@ void Collector_init(void)
     Csf_init(sem);
 
     /* Set the indirect persistent timeout */
-/*#if (CONFIG_MAC_BEACON_ORDER_DEFAULT != NON_BEACON_ORDER_DEFAULT)
-/    ApiMac_mlmeSetReqUint16(ApiMac_attribute_transactionPersistenceTime,
-                            (INDIRECT_PERSISTENT_TIME >> CONFIG_MAC_BEACON_ORDER));
-#else
-*/    ApiMac_mlmeSetReqUint16(ApiMac_attribute_transactionPersistenceTime,
-                            INDIRECT_PERSISTENT_TIME);
-/*#endif*/
-
+    if(CONFIG_MAC_BEACON_ORDER != NON_BEACON_ORDER)
+    {
+        ApiMac_mlmeSetReqUint16(ApiMac_attribute_transactionPersistenceTime, (INDIRECT_PERSISTENT_TIME >> CONFIG_MAC_BEACON_ORDER));
+    }
+    else
+    {
+        ApiMac_mlmeSetReqUint16(ApiMac_attribute_transactionPersistenceTime, INDIRECT_PERSISTENT_TIME);
+    }
 
     ApiMac_mlmeSetReqUint8(ApiMac_attribute_phyTransmitPowerSigned,
                            (uint8_t)CONFIG_TRANSMIT_POWER);
+
+#ifdef FCS_TYPE16
+    /* Set the fcs type */
+    ApiMac_mlmeSetReqBool(ApiMac_attribute_fcsType,
+                          (bool)1);
+#endif
 
     /* Initialize the app clocks */
     initializeClocks();
@@ -309,6 +370,13 @@ void Collector_init(void)
         /* Start the device */
         Util_setEvent(&Collector_events, COLLECTOR_START_EVT);
     }
+
+    OADProtocol_Params_init(&OADProtocol_params);
+    OADProtocol_params.pRadioAccessFxns = &oadRadioAccessFxns;
+    OADProtocol_params.pProtocolMsgCallbacks = &oadMsgCallbacks;
+
+    OADProtocol_open(&OADProtocol_params);
+
 }
 
 /*!
@@ -475,6 +543,145 @@ Collector_status_t Collector_sendToggleLedRequest(ApiMac_sAddr_t *pDstAddr)
     }
 
     return(status);
+}
+
+/*!
+ updates the FW list.
+
+ Public function defined in collector.h
+ */
+uint32_t Collector_updateFwList(char *new_oad_file)
+{
+    uint32_t oad_file_idx;
+    uint32_t oad_file_id;
+    bool found = false;
+
+    LOG_printf( LOG_ALWAYS, "Collector_updateFwList: new oad file: %s\n",
+                          new_oad_file);
+
+    /* Does OAD file exist */
+    for(oad_file_idx = 0; oad_file_idx < MAX_OAD_FILES; oad_file_idx++)
+    {
+        if(strcmp(new_oad_file, oad_file_list[oad_file_idx].oad_file) == 0)
+        {
+            LOG_printf( LOG_ALWAYS, "Collector_updateFwList: found ID: %d\n",
+                          oad_file_list[oad_file_idx].oad_file_id);
+            oad_file_id = oad_file_list[oad_file_idx].oad_file_id;
+            found = true;
+            break;
+        }
+    }
+
+    if(!found)
+    {
+        static uint32_t latest_oad_file_idx = 0;
+        static uint32_t latest_oad_file_id = 0;
+
+        oad_file_id = latest_oad_file_id;
+
+        oad_file_list[latest_oad_file_idx].oad_file_id = oad_file_id;
+        strncpy(oad_file_list[latest_oad_file_idx].oad_file, new_oad_file, 256);
+
+        LOG_printf( LOG_ALWAYS, "Collector_updateFwList: Added %s, ID %d\n",
+              oad_file_list[latest_oad_file_idx].oad_file,
+              oad_file_list[latest_oad_file_idx].oad_file_id);
+
+        latest_oad_file_id++;
+        latest_oad_file_idx++;
+        if(latest_oad_file_idx == MAX_OAD_FILES)
+        {
+            latest_oad_file_idx = 0;
+        }
+    }
+
+    return oad_file_id;
+}
+
+
+/*!
+ Send OAD version request message.
+
+ Public function defined in collector.h
+ */
+Collector_status_t Collector_sendFwVersionRequest(ApiMac_sAddr_t *pDstAddr)
+{
+    Collector_status_t status = Collector_status_invalid_state;
+
+    if(OADProtocol_sendFwVersionReq((void*) pDstAddr) == OADProtocol_Status_Success)
+    {
+        status = Collector_status_success;
+    }
+
+    return status;
+}
+
+/*!
+ Send OAD version request message.
+
+ Public function defined in collector.h
+ */
+Collector_status_t Collector_startFwUpdate(ApiMac_sAddr_t *pDstAddr, uint32_t oad_file_id)
+{
+    Collector_status_t status = Collector_status_invalid_state;
+    uint8_t imgInfoData[16];
+    uint32_t oad_file_idx;
+    FILE *oadFile;
+
+    for(oad_file_idx = 0; oad_file_idx < MAX_OAD_FILES; oad_file_idx++)
+    {
+        if(oad_file_list[oad_file_idx].oad_file_id == oad_file_id)
+        {
+          LOG_printf( LOG_ALWAYS, "Collector_startFwUpdate: opening file: %s\n",
+                          oad_file_list[oad_file_idx].oad_file);
+
+          oadFile = fopen(oad_file_list[oad_file_idx].oad_file, "r");
+          break;
+        }
+    }
+
+    if(oadFile)
+    {
+        fseek(oadFile, IMG_HDR_ADDR, SEEK_SET);
+
+        if(fread(imgInfoData, 1, 16, oadFile) == 16)
+        {
+            LOG_printf( LOG_ALWAYS, "Collector_startFwUpdate: sending ImgIdentifyReq\n");
+
+            oadBNumBlocks = ((imgInfoData[6]) | (imgInfoData[7] << 8) ) / (OAD_BLOCK_SIZE / 4);
+
+            if(OADProtocol_sendImgIdentifyReq((void*) pDstAddr, oad_file_id, imgInfoData) == OADProtocol_Status_Success)
+            {
+                status = Collector_status_success;
+            }
+        }
+
+        fclose(oadFile);
+    }
+    else
+    {
+        LOG_printf( LOG_ALWAYS, "Collector_startFwUpdate: could not open file: %s\n",
+                        oad_file_list[oad_file_idx].oad_file);
+        status = Collector_status_invalid_file;
+    }
+
+    return status;
+}
+
+/*!
+ Find if a device is present.
+
+ Public function defined in collector.h
+ */
+Collector_status_t Collector_findDevice(ApiMac_sAddr_t *pAddr)
+{
+    Collector_status_t status = Collector_status_deviceNotFound;
+
+    if(findDevice(pAddr))
+    {
+        status = Collector_status_success;
+    }
+
+    return status;
 }
 
 /******************************************************************************
@@ -689,7 +896,7 @@ static void dataIndCB(ApiMac_mcpsDataInd_t *pDataInd)
 #ifdef FEATURE_MAC_SECURITY
         if(Cllc_securityCheck(&(pDataInd->sec)) == false)
         {
-            /* reject the message */
+            /* Reject the message */
             return;
         }
 #endif /* FEATURE_MAC_SECURITY */
@@ -728,9 +935,13 @@ static void dataIndCB(ApiMac_mcpsDataInd_t *pDataInd)
             case Smsgs_cmdIds_sensorData:
                 processSensorData(pDataInd);
                 break;
-				
+
             case Smsgs_cmdIds_rampdata:
                 Collector_statistics.sensorMessagesReceived++;
+                break;
+
+            case Smsgs_cmdIds_oad:
+                processOadData(pDataInd);
                 break;
 
             default:
@@ -855,7 +1066,7 @@ static void processConfigResponse(ApiMac_mcpsDataInd_t *pDataInd)
             pDev->status |= ASSOC_CONFIG_RSP;
         }
 
-        /* report the config response */
+        /* Report the config response */
         Csf_deviceConfigUpdate(&pDataInd->srcAddr, pDataInd->rssi,
                                &configRsp);
 
@@ -888,7 +1099,7 @@ static void processTrackingResponse(ApiMac_mcpsDataInd_t *pDataInd)
                 /* Setup for next tracking */
                 Csf_setTrackingClock( TRACKING_DELAY_TIME);
 
-                /* retry config request */
+                /* Retry config request */
                 processConfigRetry();
             }
         }
@@ -964,37 +1175,6 @@ static void processSensorData(ApiMac_mcpsDataInd_t *pDataInd)
         pBuf += 2;
     }
 
-    if(sensorData.frameControl & Smsgs_dataFields_pressureSensor)
-    {
-        pBuf += 4;
-        sensorData.pressureSensor.pressureValue = Util_buildUint32(pBuf[0],
-                                                                     pBuf[1],
-                                                                     pBuf[2],
-                                                                     pBuf[3]);
-        pBuf +=4;
-        sensorData.pressureSensor.tempValue =  Util_buildUint32(pBuf[0],
-                                                                     pBuf[1],
-                                                                     pBuf[2],
-                                                                     pBuf[3]);                                          
-    }
-
-    if(sensorData.frameControl & Smsgs_dataFields_motionSensor)
-    {
-     
-      sensorData.motionSensor.isMotion = pBuf[0];
-      pBuf += 1;
-    }
-
-    if(sensorData.frameControl & Smsgs_dataFields_batteryVoltageSensor)
-    {
-      
-      sensorData.batterySensor.voltageValue = Util_buildUint32(pBuf[0],
-                                                                     pBuf[1],
-                                                                     pBuf[2],
-                                                                     pBuf[3]);
-      pBuf +=4;
-    }
-
     if(sensorData.frameControl & Smsgs_dataFields_msgStats)
     {
         sensorData.msgStats.joinAttempts = Util_buildUint16(pBuf[0], pBuf[1]);
@@ -1049,6 +1229,12 @@ static void processSensorData(ApiMac_mcpsDataInd_t *pDataInd)
         sensorData.msgStats.lastResetReason = Util_buildUint16(pBuf[0],
                                                                pBuf[1]);
         pBuf += 2;
+        sensorData.msgStats.joinTime = Util_buildUint16(pBuf[0],
+                                                        pBuf[1]);
+        pBuf += 2;
+        sensorData.msgStats.interimDelay = Util_buildUint16(pBuf[0],
+                                                            pBuf[1]);
+        pBuf += 2;
     }
 
     if(sensorData.frameControl & Smsgs_dataFields_configSettings)
@@ -1062,6 +1248,52 @@ static void processSensorData(ApiMac_mcpsDataInd_t *pDataInd)
                                                                      pBuf[1],
                                                                      pBuf[2],
                                                                      pBuf[3]);
+        pBuf += 4;
+    }
+
+    if(sensorData.frameControl & Smsgs_dataFields_pressureSensor)
+    {
+        sensorData.pressureSensor.pressureValue = Util_buildUint32(pBuf[0],
+                                                                    pBuf[1],
+                                                                    pBuf[2],
+                                                                    pBuf[3]);
+        pBuf += 4;
+        sensorData.pressureSensor.tempValue =  Util_buildUint32(pBuf[0],
+                                                                pBuf[1],
+                                                                pBuf[2],
+                                                                pBuf[3]);
+        pBuf += 4;
+    }
+
+    if(sensorData.frameControl & Smsgs_dataFields_motionSensor)
+    {
+      sensorData.motionSensor.isMotion = *pBuf++;
+    }
+
+    if(sensorData.frameControl & Smsgs_dataFields_batterySensor)
+    {
+
+      sensorData.batterySensor.voltageValue = Util_buildUint32(pBuf[0],
+                                                                     pBuf[1],
+                                                                     pBuf[2],
+                                                                     pBuf[3]);
+      pBuf +=4;
+    }
+
+    if(sensorData.frameControl & Smsgs_dataFields_hallEffectSensor)
+    {
+      sensorData.hallEffectSensor.isOpen = *pBuf++;
+      sensorData.hallEffectSensor.isTampered = *pBuf++;
+    }
+
+    if(sensorData.frameControl & Smsgs_dataFields_fanSensor)
+    {
+      sensorData.fanSensor.fanSpeed = *pBuf++;
+    }
+
+    if(sensorData.frameControl & Smsgs_dataFields_doorLockSensor)
+    {
+      sensorData.doorLockSensor.isLocked = *pBuf++;
     }
 
     Collector_statistics.sensorMessagesReceived++;
@@ -1071,6 +1303,19 @@ static void processSensorData(ApiMac_mcpsDataInd_t *pDataInd)
                                &sensorData);
 
     processDataRetry(&(pDataInd->srcAddr));
+}
+
+/*!
+ * @brief      Process the OAD Data message.
+ *
+ * @param      pDataInd - pointer to the data indication information
+ */
+static void processOadData(ApiMac_mcpsDataInd_t *pDataInd)
+{
+    //Index past the Smsgs_cmdId
+    OADProtocol_ParseIncoming((void*) &(pDataInd->srcAddr), &(pDataInd->msdu.p[1]));
+
+    Collector_statistics.sensorMessagesReceived++;
 }
 
 /*!
@@ -1242,7 +1487,7 @@ static bool sendMsg(Smsgs_cmdIds_t type, uint16_t dstShortAddr, bool rxOnIdle,
     /* Send the message */
     if(ApiMac_mcpsDataReq(&dataReq) != ApiMac_status_success)
     {
-        /*  transaction overflow occurred */
+        /*  Transaction overflow occurred */
         return (false);
     }
     else
@@ -1452,7 +1697,7 @@ static void generateTrackingRequests(void)
         }
     }
 
-    /* if no activity found, find the first active device */
+    /* If no activity found, find the first active device */
     for(x = 0; x < CONFIG_MAX_DEVICES; x++)
     {
         /* Make sure the entry is valid. */
@@ -1551,6 +1796,32 @@ static void pollIndCB(ApiMac_mlmePollInd_t *pPollInd)
 }
 
 /*!
+ * @brief      Process the disassoc Indication Callback
+ *
+ * @param      disassocIndCB - disassoc indication
+ */
+static void disassocIndCB(ApiMac_mlmeDisassociateInd_t *pDisassocInd)
+{
+    ApiMac_sAddr_t addr;
+
+    addr.addrMode = ApiMac_addrType_extended;
+    memcpy(&addr.addr.extAddr, &pDisassocInd->deviceAddress,
+                   (APIMAC_SADDR_EXT_LEN));
+
+    Csf_deviceDisassocUpdate(&addr);
+}
+
+/*!
+ * @brief      Process the disassoc cofirmation Callback
+ *
+ * @param      disassocCnfCB - disassoc cofirmation
+ */
+static void disassocCnfCB(ApiMac_mlmeDisassociateCnf_t *pDisassocCnf)
+{
+    Csf_deviceDisassocUpdate(&pDisassocCnf->deviceAddress);
+}
+
+/*!
  * @brief      Process retries for config and tracking messages
  *
  * @param      addr - MAC address structure */
@@ -1592,7 +1863,7 @@ static void processDataRetry(ApiMac_sAddr_t *pAddr)
  */
 static void processConfigRetry(void)
 {
-    /* retry config request if not already sent */
+    /* Retry config request if not already sent */
     if(((Collector_events & COLLECTOR_CONFIG_EVT) == 0)
         && (Csf_isConfigTimerActive() == false))
     {
@@ -1601,6 +1872,121 @@ static void processConfigRetry(void)
     }
 }
 
+/*!
+ * @brief      Process FW version response
+ */
+static void oadFwVersionRspCb(void* pSrcAddr, char *fwVersionStr)
+{
+    LOG_printf( LOG_ALWAYS, "oadFwVersionRspCb from %x\n", ((ApiMac_sAddr_t*)pSrcAddr)->addr.shortAddr);
+    Csf_deviceSensorFwVerUpdate(((ApiMac_sAddr_t*)pSrcAddr)->addr.shortAddr, fwVersionStr);
+}
+
+/*!
+ * @brief      Process OAD image identify response
+ */
+static void oadImgIdentifyRspCb(void* pSrcAddr, uint8_t status)
+{
+
+}
+
+static void oadBlockReqCb(void* pSrcAddr, uint8_t imgId, uint16_t blockNum, uint16_t multiBlockSize)
+{
+    uint8_t blockBuf[OAD_BLOCK_SIZE] = {0};
+    int byteRead = 0;
+    uint32_t oad_file_idx;
+    FILE *oadFile = NULL;
+
+    LOG_printf( LOG_ALWAYS, "oadBlockReqCb[%d:%x] from %x\n", imgId, blockNum, ((ApiMac_sAddr_t*)pSrcAddr)->addr.shortAddr);
+
+    Csf_deviceSensorOadUpdate( ((ApiMac_sAddr_t*)pSrcAddr)->addr.shortAddr, imgId, blockNum, oadBNumBlocks);
+
+    for(oad_file_idx = 0; oad_file_idx < MAX_OAD_FILES; oad_file_idx++)
+    {
+        if(oad_file_list[oad_file_idx].oad_file_id == imgId)
+        {
+            LOG_printf( LOG_ALWAYS, "oadBlockReqCb: openinging %d:%d:%s\n", oad_file_idx,
+                                    oad_file_list[oad_file_idx].oad_file_id,
+                                    oad_file_list[oad_file_idx].oad_file);
+
+            oadFile = fopen(oad_file_list[oad_file_idx].oad_file, "r");
+
+            break;
+        }
+    }
+
+    if(oadFile != NULL)
+    {
+        fseek(oadFile, (blockNum * OAD_BLOCK_SIZE), SEEK_SET);
+        byteRead = (int) fread(blockBuf, 1, OAD_BLOCK_SIZE, oadFile);
+
+        LOG_printf( LOG_ALWAYS, "oadBlockReqCb: read %d bytes from position %d of %p\n",
+                                                    byteRead, (blockNum * OAD_BLOCK_SIZE), oadFile);
+
+        if(byteRead == 0)
+        {
+            LOG_printf( LOG_ERROR, "oadBlockReqCb: Read 0 Bytes");
+        }
+
+        fclose(oadFile);
+
+        OADProtocol_sendOadImgBlockRsp(pSrcAddr, imgId, blockNum, blockBuf);
+    }
+    else
+    {
+      LOG_printf( LOG_ALWAYS, "imgId %d file not found\n", imgId);
+    }
+}
+
+/*!
+ * @brief      Radio access function for OAD module to send messages
+ */
+void* oadRadioAccessAllocMsg(uint32_t msgLen)
+{
+    uint8_t *msgBuffer;
+
+    /* allocate buffer for CmdId + message */
+    msgBuffer = malloc(msgLen + 1);
+
+    return msgBuffer + 1;
+}
+
+/*!
+ * @brief      Radio access function for OAD module to send messages
+ */
+static OADProtocol_Status_t oadRadioAccessPacketSend(void* pDstAddr, uint8_t *pMsg, uint32_t msgLen)
+{
+    OADProtocol_Status_t status = OADProtocol_Failed;
+    uint8_t* pMsduPayload;
+    Cllc_associated_devices_t* pDev;
+
+    pDev  = findDevice(pDstAddr);
+
+    if( (pDev) && (pMsg) )
+    {
+        /* Buffer should have been allocated with oadRadioAccessAllocMsg,
+         * so 1 byte before the oad msg buffer was allocated for the Smsgs_cmdId
+         */
+        pMsduPayload = pMsg - 1;
+        pMsduPayload[0] = Smsgs_cmdIds_oad;
+
+        /* Send the Tracking Request */
+       if((sendMsg(Smsgs_cmdIds_oad, ((ApiMac_sAddr_t*)pDstAddr)->addr.shortAddr,
+                pDev->capInfo.rxOnWhenIdle,
+                (msgLen + 1),
+                pMsduPayload)) == true)
+       {
+           status = OADProtocol_Status_Success;
+       }
+    }
+
+    if( (pDev) && (pMsg) )
+    {
+        /* Free the memory allocated in oadRadioAccessAllocMsg. */
+        free(pMsg - 1);
+    }
+
+    return status;
+}
 /*
  *  ========================================
  *  Texas Instruments Micro Controller Style

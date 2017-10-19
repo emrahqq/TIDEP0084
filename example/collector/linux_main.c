@@ -39,8 +39,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
  *****************************************************************************/
 
 #include "compiler.h"
@@ -48,12 +48,12 @@
 #include "api_mac.h"
 #include "api_mac_linux.h"
 #include "mt_msg_dbg.h"
-#include "ini_file.h"       /* this reads our ini file */
-#include "log.h"            /* our logging scheme */
+#include "ini_file.h"       /* This reads our ini file */
+#include "log.h"            /* Our logging scheme */
 #include "timer.h"
 #include "fatal.h"
 #include "stream.h"
-#include "stream_socket.h"  /* we use a socket in our app */
+#include "stream_socket.h"  /* We use a socket in our app */
 #include "stream_uart.h"    /* and a uart. */
 
 #include <string.h>
@@ -122,7 +122,7 @@ static int do_mask( struct ini_parser *pINI, uint8_t *var, size_t var_size )
     }
     n = 0;
     
-    /* parse numbers... */
+    /* Parse numbers... */
     INI_valueAsNumberList_init(&nl, pINI);
     while(INI_valueAsNumberList_next(&nl) != EOF)
     {
@@ -142,7 +142,7 @@ static int do_mask( struct ini_parser *pINI, uint8_t *var, size_t var_size )
     if( nl.is_error ){
         return -1;
     }
-    // success
+    // Success
     return 0;
 }
 
@@ -177,7 +177,7 @@ const struct ini_flag_name * const log_flag_names[] = {
     nv_log_flags,
     /* See api_mac_linux.h */
     api_mac_log_flags,
-    /* terminate */
+    /* Terminate */
     NULL
 };
 
@@ -260,10 +260,10 @@ static int my_MT_MSG_INI_settings(struct ini_parser *pINI, bool *handled)
  */
 static int my_APP_settings(struct ini_parser *pINI, bool *handled)
 {
-    /* we only deal with application level settings. */
+    /* We only deal with application level settings. */
     if(pINI->item_name == NULL)
     {
-        /* we don't care about the section line. */
+        /* We don't care about the section line. */
         return 0;
     }
     if(!INI_itemMatches(pINI, "application", NULL))
@@ -331,6 +331,7 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
     if( INI_itemMatches(pINI,NULL, "config-tx-power" ) ){
         linux_CONFIG_TRANSMIT_POWER = INI_valueAsInt(pINI);
         *handled = true;
+
         return 0;
     }
 
@@ -338,6 +339,16 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
     {
         linux_CONFIG_PHY_ID = INI_valueAsInt(pINI);
         *handled = true;
+
+        /* Verify PHY ID is in range */
+        if ((linux_CONFIG_PHY_ID < APIMAC_MRFSK_STD_PHY_ID_BEGIN) ||
+            ((linux_CONFIG_PHY_ID > APIMAC_MRFSK_STD_PHY_ID_END) &&
+            (linux_CONFIG_PHY_ID < APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN)) ||
+            (linux_CONFIG_PHY_ID > APIMAC_MRFSK_GENERIC_PHY_ID_END))
+        {
+            FATAL_printf("Invalid PHY ID: %d\n", linux_CONFIG_PHY_ID);
+        }
+
         return 0;
     }
 
@@ -376,8 +387,8 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
         *handled = true;
         return 0;
     }
-	
-	if(INI_itemMatches(pINI, NULL, "config-range-ext"))
+
+    if(INI_itemMatches(pINI, NULL, "config-range-ext"))
     {
         linux_CONFIG_RANGE_EXT_MODE = INI_valueAsInt(pINI);
         *handled = true;
@@ -496,7 +507,7 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
     {
         struct mt_msg_dbg **ppDbg;
 
-        /* append at end of list */
+        /* Append at end of list */
         ppDbg = &(ALL_MT_MSG_DBG);
         while( *ppDbg ){
             ppDbg = &((*ppDbg)->m_pNext);
@@ -534,7 +545,7 @@ static int cfg_callback(struct ini_parser *pINI, bool *handled)
             return r;
         }
     }
-    /* let the system handle it */
+    /* Let the system handle it */
     return 0;
 }
 

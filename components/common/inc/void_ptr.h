@@ -39,8 +39,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
  *****************************************************************************/
 
 #if !defined(VOID_PTR_H)

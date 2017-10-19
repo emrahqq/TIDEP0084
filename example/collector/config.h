@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
  *****************************************************************************/
 #ifndef CONFIG_H
 #define CONFIG_H
@@ -119,7 +119,7 @@ extern int linux_CONFIG_MAC_BEACON_ORDER;
 #define CONFIG_MAC_BEACON_ORDER_DEFAULT 15
 
 /*!
- Setting superframe order to 15 will disable the superframe, 6 is a good value
+ Setting superframe order to 15 will disable the superframe, 8 is a good value
  for beacon mode
  */
 extern int linux_CONFIG_MAC_SUPERFRAME_ORDER;
@@ -132,7 +132,7 @@ extern int linux_CONFIG_PHY_ID;
 #define CONFIG_PHY_ID_DEFAULT                (APIMAC_STD_US_915_PHY_1)
 
 /*! Setting for channel page */
-extern int linux_CONFIG_CHANNEL_PAGE ;
+extern int linux_CONFIG_CHANNEL_PAGE;
 #define CONFIG_CHANNEL_PAGE                  linux_CONFIG_CHANNEL_PAGE
 
 #if ((CONFIG_PHY_ID_DEFAULT >= APIMAC_MRFSK_STD_PHY_ID_BEGIN) && (CONFIG_PHY_ID_DEFAULT <= APIMAC_MRFSK_STD_PHY_ID_END))
@@ -143,17 +143,11 @@ extern int linux_CONFIG_CHANNEL_PAGE ;
 #error "PHY ID is wrong."
 #endif
 
-/*! scan duration */
+/*! Scan duration */
 extern uint8_t linux_CONFIG_SCAN_DURATION;
 #define CONFIG_SCAN_DURATION         linux_CONFIG_SCAN_DURATION
 
-#if ((CONFIG_PHY_ID_DEFAULT >= APIMAC_MRFSK_STD_PHY_ID_BEGIN) && (CONFIG_PHY_ID_DEFAULT <= APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN))
 #define CONFIG_SCAN_DURATION_DEFAULT 5
-#elif ((CONFIG_PHY_ID_DEFAULT >= APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN + 1) && (CONFIG_PHY_ID_DEFAULT <= APIMAC_MRFSK_GENERIC_PHY_ID_END))
-#define CONFIG_SCAN_DURATION_DEFAULT 9
-#else
-#error "PHY ID is wrong."
-#endif
 
 extern int linux_CONFIG_RANGE_EXT_MODE;
 #define CONFIG_RANGE_EXT_MODE linux_CONFIG_RANGE_EXT_MODE
@@ -182,6 +176,7 @@ extern int linux_CONFIG_RANGE_EXT_MODE;
  The default of 0x0F represents channels 0-3 are selected.
  APIMAC_STD_US_915_PHY_1 (50kbps/2-FSK/915MHz band) has channels 0 - 128.
  APIMAC_STD_ETSI_863_PHY_3 (50kbps/2-FSK/863MHz band) has channels 0 - 33.
+ APIMAC_GENERIC_CHINA_433_PHY_128 (50kbps/2-FSK/433MHz band) has channels 0 - 6.
 
  NOTE:
     In the linux impliementation the INI file parser callback
@@ -199,7 +194,7 @@ extern uint8_t linux_CONFIG_CHANNEL_MASK[APIMAC_154G_CHANNEL_BITMAP_SIZ];
  It is represented as a bit string with LSB representing Ch0.
  e.g., 0x01 0x10 represents Ch0 and Ch12 are included.
  */
-extern uint8_t linux_CONFIG_FH_CHANNEL_MASK[APIMAC_154G_CHANNEL_BITMAP_SIZ]; 
+extern uint8_t linux_CONFIG_FH_CHANNEL_MASK[APIMAC_154G_CHANNEL_BITMAP_SIZ];
 #define CONFIG_FH_CHANNEL_MASK_DEFAULT { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
                                          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
                                          0xFF, 0xFF, 0xFF, 0xFF, 0xFF }
@@ -228,7 +223,7 @@ extern uint8_t linux_FH_ASYNC_CHANNEL_MASK[APIMAC_154G_CHANNEL_BITMAP_SIZ];
  to the number of end devices requested.
  */
 extern int linux_FH_NUM_NON_SLEEPY_NEIGHBORS;
-#define FH_NUM_NON_SLEEPY_NEIGHBORS  linux_FH_NUM_NON_SLEEPY_NEIGHBORS  
+#define FH_NUM_NON_SLEEPY_NEIGHBORS  linux_FH_NUM_NON_SLEEPY_NEIGHBORS
 #define FH_NUM_NON_SLEEPY_NEIGHBORS_DEFAULT 0
 /*!
  The number of sleepy end devices to be supported.
@@ -267,7 +262,16 @@ extern int linux_CONFIG_TRICKLE_MAX_CLK_DURATION;
 #define CONFIG_TRICKLE_MIN_CLK_DURATION_DEFAULT 3000
 #define CONFIG_TRICKLE_MAX_CLK_DURATION_DEFAULT 6000
 #else
+/*!
+ The minimum trickle timer window for PAN Advertisement,
+ and PAN Configuration frame transmissions.
+ Recommended to set this to half of PAS/PCS MIN Timer
+*/
 #define CONFIG_TRICKLE_MIN_CLK_DURATION_DEFAULT 30000
+/*!
+ The maximum trickle timer window for PAN Advertisement,
+ and PAN Configuration frame transmissions.
+ */
 #define CONFIG_TRICKLE_MAX_CLK_DURATION_DEFAULT 60000
 #endif
 
@@ -276,10 +280,14 @@ extern int linux_CONFIG_FH_PAN_SIZE;
 #define CONFIG_FH_PAN_SIZE             linux_CONFIG_FH_PAN_SIZE
 #define CONFIG_FH_PAN_SIZE_DEFAULT     0x0032
 
-/* To enable Doubling of PA/PC trickle time,
- * useful when network has non sleepy nodes and
- * thre is a requirement to use PA/PC to convey updated
- * PAN information */
+/*!
+ To enable Doubling of PA/PC trickle time,
+ useful when network has non sleepy nodes and
+ there is a requirement to use PA/PC to convey updated
+ PAN information. Note that when using option the CONFIG_TRICKLE_MIN_CLK_DURATION
+ and CONFIG_TRICKLE_MAX_CLK_DURATION should be set to a sufficiently large value.
+ Recommended values are 1 min and 16 min respectively.
+*/
 extern bool linux_CONFIG_DOUBLE_TRICKLE_TIMER;
 #define CONFIG_DOUBLE_TRICKLE_TIMER    linux_CONFIG_DOUBLE_TRICKLE_TIMER
 #define CONFIG_DOUBLE_TRICKLE_TIMER_DEFAULT false
@@ -291,17 +299,36 @@ extern char linux_CONFIG_FH_NETNAME[32];
 
 /*!
  Value for Transmit Power in dBm
- Default value is 14, allowed values are any value
- between 0 dBm and 14 dBm in 1 dB increments, and -10 dBm
+ For US and ETSI band, Default value is 10, allowed values are
+ -10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 and 14dBm.
+ For China band, allowed values are 6, 10, 13, 14 and 15dBm.
+ For CC1190, allowed values are between 18, 23, 25, 26 and 27dBm.
  When the nodes in the network are close to each other
- lowering this value will help reduce saturation */
+ lowering this value will help reduce saturation
+*/
 extern int linux_CONFIG_TRANSMIT_POWER;
 #define CONFIG_TRANSMIT_POWER   linux_CONFIG_TRANSMIT_POWER
+
+/*!
+In Range extension mode the CCFG_FORCE_VDDR_HH must be set to 0 (Default)
+in the COPROCESSSOR project's predefined symbols.
+
+For China bands (Generic and Longrange 433 MHz), if CCFG_FORCE_VDDR_HH is 0 in the COPROCESSSOR
+predefined symbols, then the transmit power must be less than 15. When CCFG_FORCE_VDDR_HH is 1
+it must be exactly 15.
+
+In US and ETSI band when CCFG_FORCE_VDDR_HH = 1, only possible value of transmit power is 14
+*/
 #if CONFIG_RANGE_EXT_MODE_DEFAULT
 #define CONFIG_TRANSMIT_POWER_DEFAULT        27
 #else
+#if ((CONFIG_PHY_ID_DEFAULT == APIMAC_GENERIC_CHINA_433_PHY_128) || (CONFIG_PHY_ID_DEFAULT == APIMAC_GENERIC_CHINA_LRM_433_PHY_130))
 #define CONFIG_TRANSMIT_POWER_DEFAULT        14
+#else
+#define CONFIG_TRANSMIT_POWER_DEFAULT        12
 #endif
+#endif
+
 
 /*!
 * Enable this mode for certfication.
@@ -318,7 +345,7 @@ extern int linux_CONFIG_REPORTING_INTERVAL;
 
 #if 0
 /* This test cannot be done on linux because these
- * are not implimented as "#defines" instead they 
+ * are not implimented as "#defines" instead they
  * are implimented as variables
  */
 

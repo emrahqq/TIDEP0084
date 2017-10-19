@@ -9,25 +9,25 @@
 
  ******************************************************************************
  $License: BSD3 2016 $
-  
+
    Copyright (c) 2015, Texas Instruments Incorporated
    All rights reserved.
-  
+
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
-  
+
    *  Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
-  
+
    *  Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-  
+
    *  Neither the name of Texas Instruments Incorporated nor the names of
       its contributors may be used to endorse or promote products derived
       from this software without specific prior written permission.
-  
+
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
    THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
  *****************************************************************************/
 #ifndef SMGSS_H
 #define SMGSS_H
@@ -74,8 +74,8 @@ extern "C"
      - Command ID - [Smsgs_cmdIds_configReq](@ref Smsgs_cmdIds) (1 byte)
      - Frame Control field - Smsgs_dataFields (16 bits) - tells the sensor
      what to report in the Sensor Data Message.
-     - Reporting Interval - in millseconds (32 bits) - how often to report, 0 
-     means to turn off automated reporting, but will force the sensor device 
+     - Reporting Interval - in millseconds (32 bits) - how often to report, 0
+     means to turn off automated reporting, but will force the sensor device
      to send the Sensor Data message once.
      - Polling Interval - in millseconds (32 bits) - If the sensor device is
      a sleep device, this tells the device how often to poll its parent for
@@ -88,10 +88,10 @@ extern "C"
      - Frame Control field - Smsgs_dataFields (16 bits) - tells the collector
      what fields are supported by this device (this only includes the bits set
      in the request message).
-     - Reporting Interval - in millseconds (32 bits) - how often to report, 0 
+     - Reporting Interval - in millseconds (32 bits) - how often to report, 0
      means to turn off reporting.
      - Polling Interval - in millseconds (32 bits) - If the sensor device is
-     a sleep device, this tells how often this device will poll its parent. 
+     a sleep device, this tells how often this device will poll its parent.
      A value of 0 means that the device doesn't sleep.
  <BR>
  The <b>Sensor Data Message</b> is defined as:
@@ -100,7 +100,7 @@ extern "C"
      what fields are included in this message.
      - Data Fields - The length of this field is determined by what data fields
      are included.  The order of the data fields are determined by the bit
-     position of the Frame Control field (low bit first).  For example, if the 
+     position of the Frame Control field (low bit first).  For example, if the
      frame control field has Smsgs_dataFields_tempSensor and
      Smsgs_dataFields_lightSensor set, then the Temp Sensor field is first,
      followed by the light sensor field.
@@ -112,13 +112,13 @@ extern "C"
       integer part of temperature in Deg C (-256 .. +255)
  <BR>
  The <b>Light Sensor Field</b> is defined as:
-    - Raw Sensor Data - (uint16_6) raw data read out of the OPT2001 light 
+    - Raw Sensor Data - (uint16_6) raw data read out of the OPT2001 light
     sensor.
  <BR>
  The <b>Humidity Sensor Field</b> is defined as:
-    - Raw Temp Sensor Data - (uint16_t) - raw temperature data from the 
+    - Raw Temp Sensor Data - (uint16_t) - raw temperature data from the
     Texas Instruments HCD1000 humidity sensor.
-    - Raw Humidity Sensor Data - (uint16_t) - raw humidity data from the 
+    - Raw Humidity Sensor Data - (uint16_t) - raw humidity data from the
     Texas Instruments HCD1000 humidity sensor.
  <BR>
  The <b>Message Statistics Field</b> is defined as:
@@ -154,7 +154,7 @@ extern "C"
      3 - MAC, 4 - TIRTOS
  <BR>
  The <b>Config Settings Field</b> is defined as:
-     - Reporting Interval - in millseconds (32 bits) - how often to report, 0 
+     - Reporting Interval - in millseconds (32 bits) - how often to report, 0
      means reporting is off.
      - Polling Interval - in millseconds (32 bits) - If the sensor device is
      a sleep device, this states how often the device polls its parent for
@@ -190,6 +190,12 @@ extern "C"
 #define SMSGS_SENSOR_MOTION_LEN 1
 /*! Length of the batteryVoltageSensor portion of the sensor data message */
 #define SMSGS_SENSOR_BATTERY_LEN 4
+/*! Length of the hallEffectSensor portion of the sensor data message */
+#define SMSGS_SENSOR_HALL_EFFECT_LEN   2
+/*! Length of the fanSensor portion of the sensor data message */
+#define SMSGS_SENSOR_FAN_LEN 1
+/*! Length of the doorLockSensor portion of the sensor data message */
+#define SMSGS_SENSOR_DOORLOCK_LEN 1
 /*! Length of the messageStatistics portion of the sensor data message */
 #define SMSGS_SENSOR_MSG_STATS_LEN 36
 /*! Length of the configSettings portion of the sensor data message */
@@ -219,8 +225,14 @@ extern "C"
     Smsgs_cmdIds_toggleLedReq = 6,
     /* Toggle LED response msg, sent from the sensor to the collector */
     Smsgs_cmdIds_toggleLedRsp = 7,
-	/* new data type for ramp sensor data */
-    Smsgs_cmdIds_rampdata = 8
+    /* new data type for ramp sensor data */
+    Smsgs_cmdIds_rampdata = 8,
+    /*! OAD mesages, sent/received from both collector and sensor */
+    Smsgs_cmdIds_oad = 9,
+    /*! Fan speed control command */
+    Smsgs_cmdIds_fanSpeedChg = 10,
+    /*! Door lock command */
+    Smsgs_cmdIds_doorlockChg = 11
  } Smsgs_cmdIds_t;
 
 /*!
@@ -246,7 +258,13 @@ typedef enum
     /*! Motion Sensor */
     Smsgs_dataFields_motionSensor = 0x0040,
     /*! Battery Sensor */
-    Smsgs_dataFields_batteryVoltageSensor = 0x0080
+    Smsgs_dataFields_batterySensor = 0x0080,
+    /*! Door and Window Hall Effect Sensor */
+    Smsgs_dataFields_hallEffectSensor = 0x0100,
+    /*! Fan Sensor */
+    Smsgs_dataFields_fanSensor = 0x0200,
+    /*! Door Lock Sensor */
+    Smsgs_dataFields_doorLockSensor = 0x0400
 } Smsgs_dataFields_t;
 
 /*!
@@ -386,7 +404,7 @@ typedef struct _Smsgs_humiditysensorfield_t
 typedef struct _Smsgs_pressuresensorfield_t
 {
     /*! Temperature value read out of the BMP280 pressure sensor */
-    uint32_t tempValue;
+    int32_t tempValue;
 
     /*! Pressure value read out of the BMP280 pressure sensor */
     uint32_t pressureValue;
@@ -409,6 +427,35 @@ typedef struct _Smsgs_batterysensorfield_t
     /* battery voltage value */
     uint32_t voltageValue;
 }Smsgs_batterySensorField_t;
+
+/*!
+    Hall Effect Sensor Field
+*/
+typedef struct _Smsgs_hallEffectSensorField_t
+{
+    bool isOpen;
+    bool isTampered;
+} Smsgs_hallEffectSensorField_t;
+
+/*!
+    Fan Sensor Field
+*/
+typedef struct _Smsgs_fansensorfield_t
+{
+    /*! Speed of fan */
+    int8_t fanSpeed;
+
+} Smsgs_fanSensorField_t;
+
+/*!
+    Door Lock Sensor Field
+*/
+typedef struct _Smsgs_doorlocksensorfield_t
+{
+    /*! locked state of door sensor */
+    bool isLocked;
+
+} Smsgs_doorLockSensorField_t;
 
 /*!
  Message Statistics Field
@@ -463,6 +510,10 @@ typedef struct _Smsgs_msgstatsfield_t
      3 - MAC, 4 - TIRTOS
      */
     uint16_t lastResetReason;
+    /*! Amount of time taken for node to join */
+    uint16_t joinTime;
+    /*! Delay between sending a packet and receiving an ack */
+    uint16_t interimDelay;
 } Smsgs_msgStatsField_t;
 
 /*!
@@ -531,9 +582,24 @@ typedef struct _Smsgs_sensormsg_t
     Smsgs_motionSensorField_t motionSensor;
     /*!
         Battery Voltage Sensor field - valid only if
-        Smsgs_dataFields_batteryVoltageSensor is set in frameControl.
+        Smsgs_dataFields_batterySensor is set in frameControl.
      */
     Smsgs_batterySensorField_t batterySensor;
+    /*!
+        Hall Effect Sensor Field - valid only if
+        Smsgs_dataFields_hallEffectSensor is set in frameControl.
+    */
+    Smsgs_hallEffectSensorField_t hallEffectSensor;
+    /*!
+        Fan Sensor Field - valid only if
+        Smsgs_dataFields_fanSensor is set in frameControl.
+    */
+    Smsgs_fanSensorField_t fanSensor;
+    /*!
+        Door Lock Sensor Field - valid only if
+        Smsgs_dataFields_doorLockSensor is set in frameControl.
+    */
+    Smsgs_doorLockSensorField_t doorLockSensor;
 } Smsgs_sensorMsg_t;
 
 

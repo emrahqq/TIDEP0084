@@ -8,25 +8,25 @@
 
  ******************************************************************************
  $License: BSD3 2016 $
-  
+
    Copyright (c) 2015, Texas Instruments Incorporated
    All rights reserved.
-  
+
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
-  
+
    *  Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
-  
+
    *  Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-  
+
    *  Neither the name of Texas Instruments Incorporated nor the names of
       its contributors may be used to endorse or promote products derived
       from this software without specific prior written permission.
-  
+
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
    THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -39,8 +39,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
 *****************************************************************************/
 
 /******************************************************************************
@@ -55,7 +55,6 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include "appsrv.pb-c.h"
 
 #include "debug_helpers.h"
 
@@ -79,14 +78,79 @@
 #include "stream_socket.h"
 #include "stream_uart.h"
 
-#include "smsgs_proto.h"
-#include "api_mac_proto.h"
-#include "appsrv_proto.h"
-
 /******************************************************************************
  Typedefs
 *****************************************************************************/
+typedef enum cmdIds {
+    APPSRV_DEVICE_JOINED_IND = 0,
+    APPSRV_DEVICE_LEFT_IND = 1,
+    APPSRV_NWK_INFO_IND = 2,
+    APPSRV_GET_NWK_INFO_REQ = 3,
+    APPSRV_GET_NWK_INFO_RSP = 4,
+    APPSRV_GET_NWK_INFO_CNF = 5,
+    APPSRV_GET_DEVICE_ARRAY_REQ = 6,
+    APPSRV_GET_DEVICE_ARRAY_CNF = 7,
+    APPSRV_DEVICE_NOTACTIVE_UPDATE_IND = 8,
+    APPSRV_DEVICE_DATA_RX_IND = 9,
+    APPSRV_COLLECTOR_STATE_CNG_IND = 10,
+    APPSRV_SET_JOIN_PERMIT_REQ = 11,
+    APPSRV_SET_JOIN_PERMIT_CNF = 12,
+    APPSRV_TX_DATA_REQ = 13,
+    APPSRV_TX_DATA_CNF = 14,
+    APPSRV_RMV_DEVICE_REQ = 15,
+    APPSRV_RMV_DEVICE_RSP = 16
+} Cmd_Ids_t;
 
+typedef enum smgsCmdIds{
+    SMGS_CONFIG_REQ = 1,
+    SMGS_CONFIG_RSP = 2,
+    SMGS_TRACKING_REQ = 3,
+    SMGS_TRACKING_RSP = 4,
+    SMGS_SENSOR_DATA = 5,
+    SMGS_TOGGLE_REQ = 6,
+    SMGS_TOGGLE_RSP = 7
+}Smgs_Cmd_Ids_t;
+
+typedef enum msgComponents {
+    HEADER_LEN = 4,
+    TX_DATA_CNF_LEN = 4,
+    JOIN_PERMIT_CNF_LEN = 4,
+    NWK_INFO_REQ_LEN = 18,
+    NWK_INFO_IND_LEN = 17,
+    DEV_ARRAY_HEAD_LEN = 3,
+    DEV_ARRAY_INFO_LEN = 18,
+    DEVICE_JOINED_IND_LEN = 18,
+    MAX_SENSOR_DATA_LEN = 255,
+    DEVICE_NOT_ACTIVE_LEN = 13,
+    STATE_CHG_IND_LEN = 1,
+    REMOVE_DEVICE_RSP_LEN = 0
+} Msg_Components_t;
+
+typedef enum nwkModes {
+    BEACON_ENABLED = 1,
+    NON_BEACON = 2,
+    FREQUENCY_HOPPING = 3
+} Nwk_Modes_t;
+
+typedef enum rmvDeviceStatus {
+    RMV_STATUS_SUCCESS = 0,
+    RMV_STATUS_FAIL = 1
+} Rmv_Device_Status_t;
+
+typedef enum apiMacAssocStatus {
+    API_MAC_STATUS_SUCCESS = 0,
+    API_MAC_STATUS_PAN_AT_CAP = 1,
+    API_MAC_STATUS_ACCESS_DENIED = 2
+} Api_Mac_Assoc_Status_t;
+
+typedef enum {
+    APPSRV_SYS_ID_RPC = 10
+} TimacAppSrvSysId_No_Pb_t;
+
+typedef enum sDataMsgType{
+    SENSOR_DATA_MSG = 0x01,
+    CONFIG_RSP_MSG = 0x02
+} S_Data_Msg_Type_t;
 
 struct appsrv_connection {
     /*! is this item busy (broadcasting) */
@@ -121,27 +185,6 @@ struct socket_cfg appClient_socket_cfg;
 struct socket_cfg npi_socket_cfg;
 /*! uart configuration for apimac if talking to UART instead of npi */
 struct uart_cfg   uart_cfg;
-
-/*! malloc for protobuf */
-static void *my_allocator(void *notused, size_t n)
-{
-    (void)notused;
-    return calloc(1, n);
-}
-
-/*! free for protobuf */
-static void my_free(void *notused, void *pBuf)
-{
-    (void)(notused);
-    free(pBuf);
-}
-
-/*! we control memory allocation for the protobuf code via this */
-static ProtobufCAllocator protobuf_allocator = {
-    .alloc = my_allocator,
-    .free = my_free,
-    .allocator_data = NULL
-};
 
 /*! Generic template for all gateway interfaces
   Note: These parameters can be modified via the ini file
@@ -250,96 +293,64 @@ static void unlock_connection_list(void)
  */
 static void send_AppsrvTxDataCnf(int status)
 {
-    AppsrvTxDataCnf *pCNF;
+    int len = TX_DATA_CNF_LEN;
+    uint8_t *pBuff;
+
     struct mt_msg *pMsg;
-    size_t len;
+    pMsg = MT_MSG_alloc(
+                len,
+                MT_MSG_cmd0_areq(APPSRV_SYS_ID_RPC),
+                APPSRV_TX_DATA_CNF);
 
-    pMsg = NULL;
-    pCNF = NULL;
+    /* Create duplicate pointer to msg buffer for building */
+    pBuff = pMsg->iobuf + HEADER_LEN;
 
-    pCNF = copy_AppsrvTxDataCnf( (uint8_t)status);
-    if(!pCNF)
-    {
-        goto fail;
-    }
+    /* Put status in the msg buffer */
+    *pBuff++ = (uint8_t)(status & 0xFF);
+    *pBuff++ = (uint8_t)((status >> 8) & 0xFF);
+    *pBuff++ = (uint8_t)((status >> 16) & 0xFF);
+    *pBuff++ = (uint8_t)((status >> 24) & 0xFF);
 
-    len = appsrv_tx_data_cnf__get_packed_size(pCNF);
-    pMsg = MT_MSG_alloc((int)len,
-                        MT_MSG_cmd0_areq(TIMAC_APP_SRV_SYS_ID__RPC_SYS_PB_TIMAC_APPSRV),
-                        APPSRV__CMD_ID__APPSRV_TX_DATA_CNF);
-    if(pMsg == NULL)
-    {
-        goto fail;
-    }
-    pMsg->pLogPrefix = "tx-data-cnf";
-
-    /* set it to the template */
+    /* Send msg  */
     MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
-    appsrv_tx_data_cnf__pack(pCNF, &(pMsg->iobuf[pMsg->iobuf_idx]));
     MT_MSG_wrBuf(pMsg, NULL, len);
-
     appsrv_broadcast(pMsg);
-fail:
-    /* nothing to do here... */
-    if(pMsg)
-    {
-        MT_MSG_free(pMsg);
-        pMsg = NULL;
-    }
-    if(pCNF)
-    {
-        free_AppsrvTxDataCnf(pCNF);
-    }
+    MT_MSG_free(pMsg);
+    pMsg = NULL;
 }
-
 
 /*!
  * @brief send a join confirm to the gateway
  */
 static void send_AppSrvJoinPermitCnf(int status)
 {
-    AppsrvSetJoinPermitCnf *pCNF;
+    int len = JOIN_PERMIT_CNF_LEN;
+    uint8_t *pBuff;
+
     struct mt_msg *pMsg;
-    size_t len;
+    pMsg = MT_MSG_alloc(
+                len,
+                MT_MSG_cmd0_areq(APPSRV_SYS_ID_RPC),
+                APPSRV_SET_JOIN_PERMIT_CNF);
 
-    pMsg = NULL;
-    pCNF = NULL;
+    /* Create duplicate pointer to msg buffer for building */
+    pBuff = pMsg->iobuf + HEADER_LEN;
 
-    pCNF = copy_AppsrvSetJoinPermitCnf(status);
-    if(!pCNF)
-    {
-        goto fail;
-    }
+    /* Put status in the msg buffer */
+    *pBuff++ = (uint8_t)(status & 0xFF);
+    *pBuff++ = (uint8_t)((status >> 8) & 0xFF);
+    *pBuff++ = (uint8_t)((status >> 16) & 0xFF);
+    *pBuff++ = (uint8_t)((status >> 24) & 0xFF);
 
-    len = appsrv_set_join_permit_cnf__get_packed_size(pCNF);
-    pMsg = MT_MSG_alloc((int)len,
-                        MT_MSG_cmd0_areq(TIMAC_APP_SRV_SYS_ID__RPC_SYS_PB_TIMAC_APPSRV),
-                        APPSRV__CMD_ID__APPSRV_SET_JOIN_PERMIT_CNF);
-    if(pMsg == NULL)
-    {
-        goto fail;
-    }
-    pMsg->pLogPrefix = "join-permit-cnf";
-
-
-    /* set it to the template */
+    /* Send msg */
     MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
-    appsrv_set_join_permit_cnf__pack(pCNF, &(pMsg->iobuf[pMsg->iobuf_idx]));
     MT_MSG_wrBuf(pMsg, NULL, len);
-
     appsrv_broadcast(pMsg);
-fail:
-    /* nothing to do here... */
-    if(pMsg)
-    {
-        MT_MSG_free(pMsg);
-        pMsg = NULL;
-    }
-    if(pCNF)
-    {
-        free_AppsrvSetJoinPermitCnf(pCNF);
-    }
+    MT_MSG_free(pMsg);
+    pMsg = NULL;
 }
+
+
 
 /*!
  * @brief handle a data request from the gateway
@@ -350,74 +361,86 @@ static void appsrv_processTxDataReq(struct appsrv_connection *pCONN,
                                     struct mt_msg *pIncomingMsg)
 {
     int status;
+    int ind = HEADER_LEN;
+    uint8_t msgId;
+    uint16_t shortAddr;
 
-    AppsrvTxDataReq *msgTxDataReq;
-    (void)pCONN;
-    /* assume total failure */
-    status = ApiMac_status_invalidParameter;
+    /* Parse msg */
+    msgId = (uint8_t) pIncomingMsg->iobuf[ind];
+    ind += 1;
 
-    /* de-serialize the incoming message */
-    msgTxDataReq = appsrv_tx_data_req__unpack(&protobuf_allocator,
-                                              pIncomingMsg->expected_len,
-                                              &pIncomingMsg->iobuf[
-                                                  pIncomingMsg->iobuf_idx]);
-    if(msgTxDataReq == NULL)
-    {
-        LOG_printf(LOG_ERROR, "Error parsing appsrv_processTxDataReq\n");
-        goto fail;
-    }
-  
-    MT_MSG_rdBuf(pIncomingMsg, NULL, pIncomingMsg->expected_len);
-    MT_MSG_parseComplete(pIncomingMsg);
-    if(pIncomingMsg->is_error)
-    {
-        goto fail;
-    }
-  
-    LOG_printf(LOG_APPSRV_MSG_CONTENT,
-               " TxDataReq (id: %d, panid: 0x%04x)\n",
-               msgTxDataReq->msgid,
-               msgTxDataReq->devdescriptor->panid);
+    shortAddr = (uint16_t) (pIncomingMsg->iobuf[ind]) |
+                           (pIncomingMsg->iobuf[ind + 1] << 8);
+    ind += 2;
 
-
-    /* Parse the device descriptor */
     ApiMac_sAddr_t pDstAddr;
     pDstAddr.addrMode = ApiMac_addrType_short;
-    pDstAddr.addr.shortAddr =
-        (uint16_t)msgTxDataReq->devdescriptor->shortaddress;
+    pDstAddr.addr.shortAddr = shortAddr;
 
-    /* Config Request */
-    if(msgTxDataReq->msgid == SMSGS_CMD_IDS__Smsgs_cmdIds_configReq)
+    if(msgId == SMGS_CONFIG_REQ)
     {
-        LOG_printf(LOG_APPSRV_MSG_CONTENT, " Config-req \n");
-        LOG_printf(LOG_APPSRV_MSG_CONTENT, " framecontrol is %d \n",
-                   msgTxDataReq->configreqmsg->framecontrol );
-        LOG_printf(LOG_APPSRV_MSG_CONTENT, " reporting interval is %d \n",
-                   msgTxDataReq->configreqmsg->reportinginterval );
-        LOG_printf(LOG_APPSRV_MSG_CONTENT, " polling interval is 0x%x\n",
-                   msgTxDataReq->configreqmsg->pollinginterval);
+        uint16_t framecontrol;
+        uint32_t pollingInterval;
+        uint32_t reportingInterval;
+        uint8_t configStatus;
 
+        pollingInterval = (uint32_t) (pIncomingMsg->iobuf[ind]) |
+                           (pIncomingMsg->iobuf[ind + 1] << 8);
+        ind += 2;
 
-        Csf_sendConfigRequest(&pDstAddr,
-                              (uint16_t)msgTxDataReq->configreqmsg->framecontrol,
-                              msgTxDataReq->configreqmsg->reportinginterval,
-                              msgTxDataReq->configreqmsg->pollinginterval);
+        reportingInterval = (uint32_t) (pIncomingMsg->iobuf[ind]) |
+                           (pIncomingMsg->iobuf[ind + 1] << 8);
+        ind += 2;
+
+        framecontrol = (uint16_t) (pIncomingMsg->iobuf[ind]) |
+                           (pIncomingMsg->iobuf[ind + 1] << 8);
+
+        configStatus = Csf_sendConfigRequest(&pDstAddr, framecontrol, reportingInterval, pollingInterval);
+        LOG_printf(LOG_APPSRV_MSG_CONTENT, " Config-req sent\n");
+        LOG_printf(LOG_APPSRV_MSG_CONTENT, "Config status: %x\n", configStatus);
     }
 
-    /* Toggle led Request */
-    if(msgTxDataReq->msgid == SMSGS_CMD_IDS__Smsgs_cmdIds_toggleLedReq)
+    else if(msgId == SMGS_TOGGLE_REQ)
     {
-        LOG_printf(LOG_APPSRV_MSG_CONTENT, " Toggle-req \n");
+        LOG_printf(LOG_APPSRV_MSG_CONTENT, " Toggle-req received\n");
         Csf_sendToggleLedRequest(&pDstAddr);
-                
     }
 
-fail:
+    status = ApiMac_status_success;
     send_AppsrvTxDataCnf(status);
+}
 
-    if( msgTxDataReq != NULL )
-    {
-        appsrv_tx_data_req__free_unpacked(msgTxDataReq, &protobuf_allocator);
+/*!
+ * @brief handle a remove device request from the gateway
+ * @param pCONN - where the request came from
+ * @param pIncommingMsg - the msg from the gateway
+ */
+static void appsrv_processRemoveDeviceReq(struct appsrv_connection *pCONN,
+                                    struct mt_msg *pIncomingMsg)
+{
+    int ind = HEADER_LEN;
+    uint16_t shortAddr;
+    ApiMac_sAddr_t dstAddr;
+    Llc_deviceListItem_t devListItem;
+    ApiMac_status_t status;
+
+    shortAddr = (uint16_t) (pIncomingMsg->iobuf[ind]) |
+                           (pIncomingMsg->iobuf[ind + 1] << 8);
+
+    dstAddr.addrMode = ApiMac_addrType_short;
+    dstAddr.addr.shortAddr = shortAddr;
+
+    if(Csf_getDevice(&dstAddr,&devListItem)){
+        /* Send disassociation request to specified sensor */
+        ApiMac_mlmeDisassociateReq_t disassocReq;
+        memset(&disassocReq, 0, sizeof(ApiMac_mlmeDisassociateReq_t));
+        disassocReq.deviceAddress.addrMode = ApiMac_addrType_short;
+        disassocReq.deviceAddress.addr.shortAddr = devListItem.devInfo.shortAddress;
+        disassocReq.devicePanId = devListItem.devInfo.panID;
+        disassocReq.disassociateReason = ApiMac_disassocateReason_coord;
+        disassocReq.txIndirect = true;
+        status = ApiMac_mlmeDisassociateReq(&disassocReq);
+        LOG_printf(LOG_APPSRV_MSG_CONTENT, "Disassociate Sent, status: %x\n", status);
     }
 }
 
@@ -429,49 +452,20 @@ fail:
 static void appsrv_processSetJoinPermitReq(struct appsrv_connection *pCONN,
                                            struct mt_msg *pIncomingMsg)
 {
-
     int status;
-    AppsrvSetJoinPermitReq *msgJoinReq;
-    (void)pCONN;
-    /* assume total failure */
-    status = ApiMac_status_invalidParameter;
+    uint32_t duration;
+    duration = (uint32_t) (pIncomingMsg->iobuf[HEADER_LEN]) |
+                          (pIncomingMsg->iobuf[HEADER_LEN + 1] << 8) |
+                          (pIncomingMsg->iobuf[HEADER_LEN + 2] << 16) |
+                          (pIncomingMsg->iobuf[HEADER_LEN + 3] << 24);
 
-    /* de-serialize the incoming message */
-    msgJoinReq =
-        appsrv_set_join_permit_req__unpack(&protobuf_allocator,
-                                           pIncomingMsg->expected_len,
-                                           &pIncomingMsg->iobuf[
-                                               pIncomingMsg->iobuf_idx]);
-    if(msgJoinReq == NULL)
-    {
-        LOG_printf(LOG_ERROR, "Error parsing appsrv_processSetJoinPermitReq\n");
-        goto fail;
-    }
-
-    MT_MSG_rdBuf(pIncomingMsg, NULL, pIncomingMsg->expected_len);
-    MT_MSG_parseComplete(pIncomingMsg);
-    if(pIncomingMsg->is_error)
-    {
-        goto fail;
-    }
     /* Set the join permit */
-    LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
-    LOG_printf(LOG_APPSRV_MSG_CONTENT, "sending duration is ____ 0x%x\n",
-               msgJoinReq->duration);
-    LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
-    status = Cllc_setJoinPermit(msgJoinReq->duration);
-    LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
-    LOG_printf(LOG_APPSRV_MSG_CONTENT, "sending Permit confirm message\n");
-    LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
+    LOG_printf(LOG_APPSRV_MSG_CONTENT, "\nSending duration: 0x%x\n\n",duration);
+    status = Cllc_setJoinPermit(duration);
 
-fail:
+    /* Send cnf msg  */
+    LOG_printf(LOG_APPSRV_MSG_CONTENT, "\nSending permitCnf message\n\n");
     send_AppSrvJoinPermitCnf(status);
-
-    if( msgJoinReq != NULL )
-    {
-        appsrv_set_join_permit_req__free_unpacked(msgJoinReq, 
-                                                  &protobuf_allocator);
-    }
 }
 
 /*!
@@ -480,39 +474,67 @@ fail:
  */
 static void appsrv_processGetNwkInfoReq(struct appsrv_connection *pCONN)
 {
+    Llc_netInfo_t networkInfo;
+    uint8_t *pBuff;
+    int len = NWK_INFO_REQ_LEN;
+
+    uint8_t status = (uint8_t)Csf_getNetworkInformation(&networkInfo);
+    uint8_t securityEnabled = CONFIG_SECURE;
+    uint8_t networkMode;
+    uint8_t state = Csf_getCllcState();
+
+    LOG_printf(LOG_APPSRV_MSG_CONTENT, "\nSending NwkCnf STATE = %x\n\n",state);
+
+    if(CONFIG_FH_ENABLE == true){
+        networkMode = FREQUENCY_HOPPING;
+    }
+
+    else{
+        if((CONFIG_MAC_SUPERFRAME_ORDER == 15) && (CONFIG_MAC_BEACON_ORDER == 15))
+        {
+            networkMode = NON_BEACON;
+        }
+        else
+        {
+            networkMode = BEACON_ENABLED;
+        }
+    }
+
     struct mt_msg *pMsg;
-    AppsrvGetNwkInfoCnf *pAnswer;
-    size_t len;
+    pMsg = MT_MSG_alloc(
+                len,
+                MT_MSG_cmd0_areq(APPSRV_SYS_ID_RPC),
+                APPSRV_GET_NWK_INFO_CNF);
 
-    pAnswer = copy_AppsrvGetNwkInfoCnf();
-    if( pAnswer == NULL ){
-        LOG_printf(LOG_ERROR, "out of memory\n");
-        return;
-    }
-        
+    /* Create duplicate pointer to msg buffer for building */
+    pBuff = pMsg->iobuf + HEADER_LEN;
 
-    len = appsrv_get_nwk_info_cnf__get_packed_size(pAnswer);
-    pMsg =
-        MT_MSG_alloc((int)len,
-                     MT_MSG_cmd0_areq(
-                         TIMAC_APP_SRV_SYS_ID__RPC_SYS_PB_TIMAC_APPSRV),
-                     APPSRV__CMD_ID__APPSRV_GET_NWK_INFO_CNF);
+    /* Build msg */
+    *pBuff++ = status;
+    *pBuff++ = (uint8_t)(networkInfo.devInfo.panID & 0xFF);
+    *pBuff++ = (uint8_t)((networkInfo.devInfo.panID >> 8) & 0xFF);
+    *pBuff++ = (uint8_t)(networkInfo.devInfo.shortAddress & 0xFF);
+    *pBuff++ = (uint8_t)((networkInfo.devInfo.shortAddress >> 8) & 0xFF);
+    *pBuff++ = (uint8_t)(networkInfo.devInfo.extAddress[0]);
+    *pBuff++ = (uint8_t)(networkInfo.devInfo.extAddress[1]);
+    *pBuff++ = (uint8_t)(networkInfo.devInfo.extAddress[2]);
+    *pBuff++ = (uint8_t)(networkInfo.devInfo.extAddress[3]);
+    *pBuff++ = (uint8_t)(networkInfo.devInfo.extAddress[4]);
+    *pBuff++ = (uint8_t)(networkInfo.devInfo.extAddress[5]);
+    *pBuff++ = (uint8_t)(networkInfo.devInfo.extAddress[6]);
+    *pBuff++ = (uint8_t)(networkInfo.devInfo.extAddress[7]);
+    *pBuff++ = (uint8_t)(networkInfo.channel);
+    *pBuff++ = (uint8_t)(networkInfo.fh);
+    *pBuff++ = securityEnabled;
+    *pBuff++ = networkMode;
+    *pBuff++ = state;
 
-    if(pMsg)
-    {
-        pMsg->pLogPrefix = "get-nwk-info-req";
-        /* this is a broadcast, so we do not have a */
-        /* specific interface... so use the template for now */
-        MT_MSG_setDestIface(pMsg, &(pCONN->socket_interface));
-        appsrv_get_nwk_info_cnf__pack(pAnswer, &pMsg->iobuf[ pMsg->iobuf_idx ]);
-        MT_MSG_wrBuf(pMsg, NULL, len);
-        MT_MSG_txrx(pMsg);
-        MT_MSG_free(pMsg);
-    }
-
-
-    free_AppsrvGetNwkInfoCnf(pAnswer);
-    pAnswer = NULL;
+    /* Send msg */
+    MT_MSG_setDestIface(pMsg, &(pCONN->socket_interface));
+    MT_MSG_wrBuf(pMsg, NULL, len);
+    MT_MSG_txrx(pMsg);
+    MT_MSG_free(pMsg);
+    pMsg = NULL;
 }
 
 /*!
@@ -522,38 +544,64 @@ static void appsrv_processGetNwkInfoReq(struct appsrv_connection *pCONN)
  */
 static void appsrv_processGetDeviceArrayReq(struct appsrv_connection *pCONN)
 {
-    AppsrvGetDeviceArrayCnf *pAnswer;
-    struct mt_msg *pMsg;
-    size_t len;
+uint16_t n = 0;
+uint8_t *pBuff;
+Csf_deviceInformation_t *pDeviceInfo;
 
-    pMsg = NULL;
+uint8_t status = API_MAC_STATUS_SUCCESS;
+n = (uint16_t) Csf_getDeviceInformationList(&pDeviceInfo);
 
-    pAnswer = copy_AppsrvGetDeviceArrayCnf();
+int len = DEV_ARRAY_HEAD_LEN + (DEV_ARRAY_INFO_LEN * n);
 
-    if(pAnswer)
+struct mt_msg *pMsg;
+    pMsg = MT_MSG_alloc(
+                len,
+                MT_MSG_cmd0_areq(APPSRV_SYS_ID_RPC),
+                APPSRV_GET_DEVICE_ARRAY_CNF);
+
+/* Create duplicate pointer to msg buffer for building */
+pBuff = pMsg->iobuf + HEADER_LEN;
+
+/* Build msg */
+*pBuff++ = status;
+*pBuff++ = (uint8_t)(n & 0xFF);
+*pBuff++ = (uint8_t)((n >> 8) & 0xFF);
+
+uint16_t x;
+for(x = 0 ; x < n ; x++)
+{
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].devInfo.panID & 0xFF);
+    *pBuff++ = (uint8_t)((pDeviceInfo[x].devInfo.panID >> 8) & 0xFF);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].devInfo.shortAddress & 0xFF);
+    *pBuff++ = (uint8_t)((pDeviceInfo[x].devInfo.shortAddress >> 8) & 0xFF);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].devInfo.extAddress[0]);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].devInfo.extAddress[1]);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].devInfo.extAddress[2]);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].devInfo.extAddress[3]);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].devInfo.extAddress[4]);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].devInfo.extAddress[5]);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].devInfo.extAddress[6]);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].devInfo.extAddress[7]);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].capInfo.panCoord);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].capInfo.ffd);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].capInfo.mainsPower);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].capInfo.rxOnWhenIdle);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].capInfo.security);
+    *pBuff++ = (uint8_t)(pDeviceInfo[x].capInfo.allocAddr);
+}
+
+/* Send msg */
+MT_MSG_setDestIface(pMsg, &(pCONN->socket_interface));
+MT_MSG_wrBuf(pMsg, NULL, len);
+MT_MSG_txrx(pMsg);
+MT_MSG_free(pMsg);
+pMsg = NULL;
+
+if(pDeviceInfo)
     {
-        len = appsrv_get_device_array_cnf__get_packed_size(pAnswer);
-        pMsg =
-            MT_MSG_alloc(
-                (int)len,
-                MT_MSG_cmd0_areq(TIMAC_APP_SRV_SYS_ID__RPC_SYS_PB_TIMAC_APPSRV),
-                APPSRV__CMD_ID__APPSRV_GET_DEVICE_ARRAY_CNF);
-        if(pMsg)
-        {
-            pMsg->pLogPrefix = "device-array-req";
-            MT_MSG_setDestIface(pMsg, &(pCONN->socket_interface));
-            appsrv_get_device_array_cnf__pack(pAnswer,
-                                              &pMsg->iobuf[ pMsg->iobuf_idx ]);
-            MT_MSG_wrBuf(pMsg, NULL, len);
-            MT_MSG_txrx(pMsg);
-        }
+        Csf_freeDeviceInformationList(n, pDeviceInfo);
+        pDeviceInfo = NULL;
     }
-
-    if(pMsg)
-    {
-        MT_MSG_free(pMsg);
-    }
-    free_AppsrvGetDeviceArrayCnf(pAnswer);
 }
 
 /******************************************************************************
@@ -646,45 +694,65 @@ next_connection:
 */
 void appsrv_networkUpdate(bool restored, Llc_netInfo_t *networkInfo)
 {
-    AppsrvNwkInfoUpdateInd *pData;
+    int len = NWK_INFO_IND_LEN;
+    uint8_t *pBuff;
 
-    struct mt_msg *pMsg;
-    size_t len;
+    uint8_t securityEnabled = CONFIG_SECURE;
+    uint8_t networkMode;
+    uint8_t state = Csf_getCllcState();
 
-    (void)(restored);
-    pData = copy_AppsrvNwkInfoUpdateInd(networkInfo);
+    if(CONFIG_FH_ENABLE == true){
+        networkMode = FREQUENCY_HOPPING;
+    }
 
-    if(pData)
-    {
-        len = appsrv_nwk_info_update_ind__get_packed_size(pData);
-
-        pMsg =
-            MT_MSG_alloc(
-                (int)len,
-                MT_MSG_cmd0_areq(TIMAC_APP_SRV_SYS_ID__RPC_SYS_PB_TIMAC_APPSRV),
-                APPSRV__CMD_ID__APPSRV_NWK_INFO_IND);
-
-        if(pMsg)
+    else{
+        if((CONFIG_MAC_SUPERFRAME_ORDER == 15) && (CONFIG_MAC_BEACON_ORDER == 15))
         {
-            /* this is a broadcast, so we do not have a */
-            /* specific interface... so use the template for now */
-            pMsg->pLogPrefix = "network-info-update-ind";
-
-            MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
-            appsrv_nwk_info_update_ind__pack(pData, &(pMsg->iobuf[pMsg->iobuf_idx]));
-            MT_MSG_wrBuf(pMsg, NULL, len);
-            appsrv_broadcast(pMsg);
-            MT_MSG_free(pMsg);
-            pMsg = NULL;
+            networkMode = NON_BEACON;
+        }
+        else
+        {
+            networkMode = BEACON_ENABLED;
         }
     }
 
-    free_AppsrvNwkInfoUpdateInd(pData);
-    pData = NULL;
+    struct mt_msg *pMsg;
+    pMsg = MT_MSG_alloc(
+                len,
+                MT_MSG_cmd0_areq(APPSRV_SYS_ID_RPC),
+                APPSRV_NWK_INFO_IND);
+
+    /* Create duplicate pointer to msg buffer for building purposes */
+    pBuff = pMsg->iobuf + HEADER_LEN;
+
+    /* Build msg */
+    *pBuff++ = (uint8_t)(networkInfo->devInfo.panID & 0xFF);
+    *pBuff++ = (uint8_t)((networkInfo->devInfo.panID >> 8) & 0xFF);
+    *pBuff++ = (uint8_t)(networkInfo->devInfo.shortAddress & 0xFF);
+    *pBuff++ = (uint8_t)((networkInfo->devInfo.shortAddress >> 8) & 0xFF);
+    *pBuff++ = (uint8_t)(networkInfo->devInfo.extAddress[0]);
+    *pBuff++ = (uint8_t)(networkInfo->devInfo.extAddress[1]);
+    *pBuff++ = (uint8_t)(networkInfo->devInfo.extAddress[2]);
+    *pBuff++ = (uint8_t)(networkInfo->devInfo.extAddress[3]);
+    *pBuff++ = (uint8_t)(networkInfo->devInfo.extAddress[4]);
+    *pBuff++ = (uint8_t)(networkInfo->devInfo.extAddress[5]);
+    *pBuff++ = (uint8_t)(networkInfo->devInfo.extAddress[6]);
+    *pBuff++ = (uint8_t)(networkInfo->devInfo.extAddress[7]);
+    *pBuff++ = (uint8_t)(networkInfo->channel);
+    *pBuff++ = (uint8_t)(networkInfo->fh);
+    *pBuff++ = securityEnabled;
+    *pBuff++ = networkMode;
+    *pBuff++ = state;
+
+    /* Send msg */
+    MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
+    MT_MSG_wrBuf(pMsg, NULL, len);
+    appsrv_broadcast(pMsg);
+    MT_MSG_free(pMsg);
+    pMsg = NULL;
 }
 
 /*!
-
   Csf module calls this function to inform the user/appClient
   that a device has joined the network
 
@@ -692,41 +760,44 @@ void appsrv_networkUpdate(bool restored, Llc_netInfo_t *networkInfo)
 */
 void appsrv_deviceUpdate(Llc_deviceListItem_t *pDevListItem)
 {
-
-    AppsrvDeviceUpdateInd *pData;
+    int len = DEVICE_JOINED_IND_LEN;
+    uint8_t *pBuff;
 
     struct mt_msg *pMsg;
-    size_t len;
+    pMsg = MT_MSG_alloc(
+                len,
+                MT_MSG_cmd0_areq(APPSRV_SYS_ID_RPC),
+                APPSRV_DEVICE_JOINED_IND);
 
-    pData = copy_AppsrvDeviceUpdateInd(pDevListItem);
+    /* Create duplicate pointer to msg buffer for building purposes */
+    pBuff = pMsg->iobuf + HEADER_LEN;
 
-    if(pData)
-    {
-        len = appsrv_device_update_ind__get_packed_size(pData);
+    /* Build msg */
+    *pBuff++ = (uint8_t)(pDevListItem->devInfo.panID & 0xFF);
+    *pBuff++ = (uint8_t)((pDevListItem->devInfo.panID >> 8) & 0xFF);
+    *pBuff++ = (uint8_t)(pDevListItem->devInfo.shortAddress & 0xFF);
+    *pBuff++ = (uint8_t)((pDevListItem->devInfo.shortAddress >> 8) & 0xFF);
+    *pBuff++ = (uint8_t)(pDevListItem->devInfo.extAddress[0]);
+    *pBuff++ = (uint8_t)(pDevListItem->devInfo.extAddress[1]);
+    *pBuff++ = (uint8_t)(pDevListItem->devInfo.extAddress[2]);
+    *pBuff++ = (uint8_t)(pDevListItem->devInfo.extAddress[3]);
+    *pBuff++ = (uint8_t)(pDevListItem->devInfo.extAddress[4]);
+    *pBuff++ = (uint8_t)(pDevListItem->devInfo.extAddress[5]);
+    *pBuff++ = (uint8_t)(pDevListItem->devInfo.extAddress[6]);
+    *pBuff++ = (uint8_t)(pDevListItem->devInfo.extAddress[7]);
+    *pBuff++ = (uint8_t)(pDevListItem->capInfo.panCoord);
+    *pBuff++ = (uint8_t)(pDevListItem->capInfo.ffd);
+    *pBuff++ = (uint8_t)(pDevListItem->capInfo.mainsPower);
+    *pBuff++ = (uint8_t)(pDevListItem->capInfo.rxOnWhenIdle);
+    *pBuff++ = (uint8_t)(pDevListItem->capInfo.security);
+    *pBuff++ = (uint8_t)(pDevListItem->capInfo.allocAddr);
 
-        pMsg = MT_MSG_alloc((int)len,
-                            MT_MSG_cmd0_areq(
-                                TIMAC_APP_SRV_SYS_ID__RPC_SYS_PB_TIMAC_APPSRV),
-                            APPSRV__CMD_ID__APPSRV_DEVICE_JOINED_IND);
-
-        if(pMsg)
-        {
-            /* this is a broadcast, so we do not have a */
-            /* specific interface... so use the template for now */
-            pMsg->pLogPrefix = "device-update-ind";
-
-            MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
-            appsrv_device_update_ind__pack(pData, &(pMsg->iobuf[pMsg->iobuf_idx]));
-            MT_MSG_wrBuf(pMsg, NULL, len);
-            appsrv_broadcast(pMsg);
-            MT_MSG_free(pMsg);
-            pMsg = NULL;
-        }
-
-    }
-
-    free_AppsrvDeviceUpdateInd(pData);
-    pData = NULL;
+    /* Send msg */
+    MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
+    MT_MSG_wrBuf(pMsg, NULL, len);
+    appsrv_broadcast(pMsg);
+    MT_MSG_free(pMsg);
+    pMsg = NULL;
 }
 
 /*
@@ -743,41 +814,248 @@ static void appsrv_deviceSensorData_common(ApiMac_sAddr_t *pSrcAddr,
                                            Smsgs_sensorMsg_t *pDataMsg,
                                            Smsgs_configRspMsg_t *pRspMsg)
 {
+    /*TODO: This function should be split into two functions, one function that
+            sends the dataMsg, and one function that sends the rspMsg. This would
+            eliminate the need for the msgContent field that is needed to build
+            and parse. */
 
-    AppsrvDeviceDataRxInd *pData;
+    /* Because the sensor data msg can can be different lengths depending
+    on what information is being sent, the msg is built differently.
+    Instead of creating the msg structure initially, a dummy buffer is
+    created first, then the contents are copied into the msg's iobuf. */
+
+    int len = 0;
+    uint8_t *buffer;
+    uint8_t *pBuff;
+    buffer = (uint8_t*)calloc(MAX_SENSOR_DATA_LEN,sizeof(uint8_t));
+    pBuff = buffer;
+
+    len += 1;
+    *pBuff++ =  (uint8_t)pSrcAddr->addrMode;
+    if(pSrcAddr->addrMode == ApiMac_addrType_short)
+    {
+        len += 2;
+        *pBuff++ = (uint8_t)(pSrcAddr->addr.shortAddr & 0xFF);
+        *pBuff++ = (uint8_t)((pSrcAddr->addr.shortAddr >> 8) & 0xFF);
+    }
+    else if(pSrcAddr->addrMode == ApiMac_addrType_extended)
+    {
+        len += 8;
+        *pBuff++ = (uint8_t)(pSrcAddr->addr.extAddr[0]);
+        *pBuff++ = (uint8_t)(pSrcAddr->addr.extAddr[1]);
+        *pBuff++ = (uint8_t)(pSrcAddr->addr.extAddr[2]);
+        *pBuff++ = (uint8_t)(pSrcAddr->addr.extAddr[3]);
+        *pBuff++ = (uint8_t)(pSrcAddr->addr.extAddr[4]);
+        *pBuff++ = (uint8_t)(pSrcAddr->addr.extAddr[5]);
+        *pBuff++ = (uint8_t)(pSrcAddr->addr.extAddr[6]);
+        *pBuff++ = (uint8_t)(pSrcAddr->addr.extAddr[7]);
+    }
+
+    len += 1;
+    *pBuff++ = (uint8_t)rssi;
+
+    /* Msg type flag */
+    uint8_t msgContent = 0;
+    if(pDataMsg != NULL){
+        msgContent |= SENSOR_DATA_MSG;
+    }
+    if(pRspMsg != NULL){
+        msgContent |= CONFIG_RSP_MSG;
+    }
+
+    len += 1;
+    *pBuff++ = msgContent;
+
+    if(pDataMsg != NULL)
+    {
+        len += 11;
+        *pBuff++ = (uint8_t)(pDataMsg->cmdId);
+        *pBuff++ = (uint8_t)(pDataMsg->frameControl & 0xFF);
+        *pBuff++ = (uint8_t)((pDataMsg->frameControl >> 8) & 0xFF);
+        *pBuff++ = (uint8_t)(pDataMsg->extAddress[0]);
+        *pBuff++ = (uint8_t)(pDataMsg->extAddress[1]);
+        *pBuff++ = (uint8_t)(pDataMsg->extAddress[2]);
+        *pBuff++ = (uint8_t)(pDataMsg->extAddress[3]);
+        *pBuff++ = (uint8_t)(pDataMsg->extAddress[4]);
+        *pBuff++ = (uint8_t)(pDataMsg->extAddress[5]);
+        *pBuff++ = (uint8_t)(pDataMsg->extAddress[6]);
+        *pBuff++ = (uint8_t)(pDataMsg->extAddress[7]);
+        if(pDataMsg->frameControl & Smsgs_dataFields_tempSensor)
+        {
+            len += 4;
+            *pBuff++ = (uint8_t)(pDataMsg->tempSensor.ambienceTemp & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->tempSensor.ambienceTemp >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->tempSensor.objectTemp & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->tempSensor.objectTemp >> 8) & 0xFF);
+        }
+        if(pDataMsg->frameControl & Smsgs_dataFields_lightSensor)
+        {
+            len += 2;
+            *pBuff++ = (uint8_t)(pDataMsg->lightSensor.rawData & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->lightSensor.rawData >> 8) & 0xFF);
+        }
+        if(pDataMsg->frameControl & Smsgs_dataFields_humiditySensor)
+        {
+            len += 4;
+            *pBuff++ = (uint8_t)(pDataMsg->humiditySensor.temp & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->humiditySensor.temp >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->humiditySensor.humidity & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->humiditySensor.humidity >> 8) & 0xFF);
+        }
+        if(pDataMsg->frameControl & Smsgs_dataFields_msgStats)
+        {
+            len += 40;
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.joinAttempts & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.joinAttempts >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.joinFails & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.joinFails >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.msgsAttempted & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.msgsAttempted >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.msgsSent & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.msgsSent >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.trackingRequests & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.trackingRequests >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.trackingResponseAttempts & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.trackingResponseAttempts >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.trackingResponseSent & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.trackingResponseSent >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.configRequests & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.configRequests >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.configResponseAttempts & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.configResponseAttempts >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.configResponseSent & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.configResponseSent >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.channelAccessFailures & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.channelAccessFailures >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.macAckFailures & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.macAckFailures >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.otherDataRequestFailures & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.otherDataRequestFailures >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.syncLossIndications & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.syncLossIndications >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.rxDecryptFailures & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.rxDecryptFailures >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.txEncryptFailures & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.txEncryptFailures >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.resetCount & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.resetCount >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.lastResetReason & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.lastResetReason >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.joinTime & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.joinTime >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->msgStats.interimDelay & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->msgStats.interimDelay >> 8) & 0xFF);
+        }
+        if(pDataMsg->frameControl & Smsgs_dataFields_configSettings)
+        {
+            len += 8;
+            *pBuff++ = (uint8_t)(pDataMsg->configSettings.reportingInterval & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->configSettings.reportingInterval >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->configSettings.reportingInterval >> 16) & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->configSettings.reportingInterval >> 24) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->configSettings.pollingInterval & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->configSettings.pollingInterval >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->configSettings.pollingInterval >> 16) & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->configSettings.pollingInterval >> 24) & 0xFF);
+        }
+        if(pDataMsg->frameControl & Smsgs_dataFields_pressureSensor)
+        {
+            len += 4;
+            *pBuff++ = (uint8_t)(pDataMsg->pressureSensor.tempValue & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->pressureSensor.tempValue >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)(pDataMsg->pressureSensor.pressureValue & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->pressureSensor.pressureValue >> 8) & 0xFF);
+        }
+        if(pDataMsg->frameControl & Smsgs_dataFields_motionSensor)
+        {
+            len += 1;
+            *pBuff++ = (uint8_t)(pDataMsg->motionSensor.isMotion);
+        }
+        if(pDataMsg->frameControl & Smsgs_dataFields_batterySensor)
+        {
+            len += 4;
+            *pBuff++ = (uint8_t)(pDataMsg->batterySensor.voltageValue & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->batterySensor.voltageValue >> 8) & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->batterySensor.voltageValue >> 16) & 0xFF);
+            *pBuff++ = (uint8_t)((pDataMsg->batterySensor.voltageValue >> 24) & 0xFF);
+        }
+        if(pDataMsg->frameControl & Smsgs_dataFields_hallEffectSensor)
+        {
+            len += 2;
+            *pBuff++ = (uint8_t)(pDataMsg->hallEffectSensor.isOpen);
+            *pBuff++ = (uint8_t)(pDataMsg->hallEffectSensor.isTampered);
+        }
+        if(pDataMsg->frameControl & Smsgs_dataFields_fanSensor)
+        {
+            len += 1;
+            *pBuff++ = (uint8_t)(pDataMsg->fanSensor.fanSpeed);
+        }
+        if(pDataMsg->frameControl & Smsgs_dataFields_doorLockSensor)
+        {
+            len += 1;
+            *pBuff++ = (uint8_t)(pDataMsg->doorLockSensor.isLocked);
+        }
+    }
+
+    if(pRspMsg != NULL)
+    {
+        len += 13;
+        *pBuff++ = (uint8_t)pRspMsg->cmdId;
+        *pBuff++ = (uint8_t)(pRspMsg->status & 0xFF);
+        *pBuff++ = (uint8_t)((pRspMsg->status >> 8) & 0xFF);
+        *pBuff++ = (uint8_t)(pRspMsg->frameControl & 0xFF);
+        *pBuff++ = (uint8_t)((pRspMsg->frameControl >> 8) & 0xFF);
+        *pBuff++ = (uint8_t)(pRspMsg->reportingInterval & 0xFF);
+        *pBuff++ = (uint8_t)((pRspMsg->reportingInterval >> 8) & 0xFF);
+        *pBuff++ = (uint8_t)((pRspMsg->reportingInterval >> 16) & 0xFF);
+        *pBuff++ = (uint8_t)((pRspMsg->reportingInterval >> 24) & 0xFF);
+        *pBuff++ = (uint8_t)(pRspMsg->pollingInterval & 0xFF);
+        *pBuff++ = (uint8_t)((pRspMsg->pollingInterval >> 8) & 0xFF);
+        *pBuff++ = (uint8_t)((pRspMsg->pollingInterval >> 16) & 0xFF);
+        *pBuff++ = (uint8_t)((pRspMsg->pollingInterval >> 24) & 0xFF);
+    }
 
     struct mt_msg *pMsg;
-    size_t len;
+    pMsg = MT_MSG_alloc(
+                len,
+                MT_MSG_cmd0_areq(APPSRV_SYS_ID_RPC),
+                APPSRV_DEVICE_DATA_RX_IND);
 
-    pData = copy_AppsrvDeviceDataRxInd(pSrcAddr, rssi, pDataMsg, pRspMsg);
-    if(!pData)
+    uint16_t i;
+    for(i = 0; i < len; i++)
     {
-        LOG_printf(LOG_ERROR, "no memory for AppsrvDeviceConfigRspInd\n");
-        return;
+        pMsg->iobuf[i + HEADER_LEN] = buffer[i];
     }
+    free(buffer);
 
-    len = appsrv_device_data_rx_ind__get_packed_size(pData);
-
-    pMsg = MT_MSG_alloc((int)(len),
-                        MT_MSG_cmd0_areq(TIMAC_APP_SRV_SYS_ID__RPC_SYS_PB_TIMAC_APPSRV),
-                        APPSRV__CMD_ID__APPSRV_DEVICE_DATA_RX_IND);
-    if(pMsg)
-    {
-        pMsg->pLogPrefix = "device-data-ind";
-
-        MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
-        appsrv_device_data_rx_ind__pack(pData, &(pMsg->iobuf[pMsg->iobuf_idx]));
-        MT_MSG_wrBuf(pMsg, NULL, len);
-
-        appsrv_broadcast(pMsg);
-        MT_MSG_free(pMsg);
-        pMsg = NULL;
-    }
-    free_AppsrvDeviceDataRxInd(pData);
-
-    pData = NULL;
+    MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
+    MT_MSG_wrBuf(pMsg, NULL, len);
+    appsrv_broadcast(pMsg);
+    MT_MSG_free(pMsg);
+    pMsg = NULL;
 }
 
+
+/*!
+ * @brief send the remove device response to gateway
+ */
+void appsrv_send_removeDeviceRsp(void)
+{
+    int len = REMOVE_DEVICE_RSP_LEN;
+
+    struct mt_msg *pMsg;
+    pMsg = MT_MSG_alloc(
+                len,
+                MT_MSG_cmd0_areq(APPSRV_SYS_ID_RPC),
+                APPSRV_RMV_DEVICE_RSP);
+
+    /* Send msg */
+    MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
+    MT_MSG_wrBuf(pMsg, NULL, len);
+    appsrv_broadcast(pMsg);
+    MT_MSG_free(pMsg);
+    pMsg = NULL;
+}
 
 /*!
   Csf module calls this function to inform the user/appClient
@@ -799,41 +1077,41 @@ void appsrv_deviceConfigUpdate(ApiMac_sAddr_t *pSrcAddr, int8_t rssi,
 void appsrv_deviceNotActiveUpdate(ApiMac_deviceDescriptor_t *pDevInfo,
                                   bool timeout)
 {
-    AppsrvDeviceNotActiveUpdateInd *pData;
+    int len = DEVICE_NOT_ACTIVE_LEN;
+    uint8_t *pBuff;
+
     struct mt_msg *pMsg;
-    size_t len;
+    pMsg = MT_MSG_alloc(
+                len,
+                MT_MSG_cmd0_areq(APPSRV_SYS_ID_RPC),
+                APPSRV_DEVICE_NOTACTIVE_UPDATE_IND);
 
-    pData = copy_AppsrvDeviceNotActiveUpdateInd(pDevInfo, timeout);
-    if(pData)
-    {
-        len = appsrv_device_not_active_update_ind__get_packed_size(pData);
+    /* Create duplicate pointer to msg buffer for building purposes */
+    pBuff = pMsg->iobuf + HEADER_LEN;
 
-        pMsg =
-            MT_MSG_alloc((int)len,
-                         MT_MSG_cmd0_areq(
-                             TIMAC_APP_SRV_SYS_ID__RPC_SYS_PB_TIMAC_APPSRV),
-                         APPSRV__CMD_ID__APPSRV_DEVICE_NOTACTIVE_UPDATE_IND);
-        if(pMsg)
-        {
-            pMsg->pLogPrefix = "device-not-active-ind";
+    /* Build msg */
+    *pBuff++ = (uint8_t)(pDevInfo->panID & 0xFF);
+    *pBuff++ = (uint8_t)((pDevInfo->panID >> 8) & 0xFF);
+    *pBuff++ = (uint8_t)(pDevInfo->shortAddress & 0xFF);
+    *pBuff++ = (uint8_t)((pDevInfo->shortAddress >> 8) & 0xFF);
+    *pBuff++ = (uint8_t)(pDevInfo->extAddress[0]);
+    *pBuff++ = (uint8_t)(pDevInfo->extAddress[1]);
+    *pBuff++ = (uint8_t)(pDevInfo->extAddress[2]);
+    *pBuff++ = (uint8_t)(pDevInfo->extAddress[3]);
+    *pBuff++ = (uint8_t)(pDevInfo->extAddress[4]);
+    *pBuff++ = (uint8_t)(pDevInfo->extAddress[5]);
+    *pBuff++ = (uint8_t)(pDevInfo->extAddress[6]);
+    *pBuff++ = (uint8_t)(pDevInfo->extAddress[7]);
+    *pBuff++ = (uint8_t)timeout;
 
-            /* this is a broadcast, so we do not have a
-               specific interface... so use the template for now */
-            MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
-
-            appsrv_device_not_active_update_ind__pack(pData,
-                                                      &(pMsg->iobuf[
-                                                            pMsg->iobuf_idx]));
-            MT_MSG_wrBuf(pMsg, NULL, len);
-
-            appsrv_broadcast(pMsg);
-            MT_MSG_free(pMsg);
-            pMsg = NULL;
-        }
-    }
-    free_AppsrvDeviceNotActiveUpdateInd(pData);
-    pData = NULL;
+    /* Send msg */
+    MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
+    MT_MSG_wrBuf(pMsg, NULL, len);
+    appsrv_broadcast(pMsg);
+    MT_MSG_free(pMsg);
+    pMsg = NULL;
 }
+
 
 /*!
   Csf module calls this function to inform the user/appClient
@@ -847,48 +1125,23 @@ void appsrv_deviceSensorDataUpdate(ApiMac_sAddr_t *pSrcAddr, int8_t rssi,
     appsrv_deviceSensorData_common(pSrcAddr, rssi, pSensorMsg, NULL);
 }
 
-/*!
-  TBD
-
-  Public function defined in appsrv_Collector.h
-*/
 void appsrv_stateChangeUpdate(Cllc_states_t state)
 {
-    size_t len;
-    AppsrvCollectorStateCngUpdateInd *pDATA;
+    int len = STATE_CHG_IND_LEN;
     struct mt_msg *pMsg;
-    LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
-    LOG_printf(LOG_APPSRV_MSG_CONTENT,
-               "sending state chng message (newstate: %d)\n",
-               (int)(state));
-    LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
-    pDATA = copy_AppsrvCollectorStateCngUpdateInd(state);
-    if(pDATA == NULL)
-    {
-        return;
-    }
+    pMsg = MT_MSG_alloc(
+                len,
+                MT_MSG_cmd0_areq(APPSRV_SYS_ID_RPC),
+                APPSRV_COLLECTOR_STATE_CNG_IND);
 
-    len = appsrv_collector_state_cng_update_ind__get_packed_size(pDATA);
+    /* Build msg, no need for duplicate pointer*/
+    pMsg->iobuf[HEADER_LEN] = (uint8_t)(state & 0xFF);
 
-    pMsg = MT_MSG_alloc((int)len,
-                        MT_MSG_cmd0_areq(TIMAC_APP_SRV_SYS_ID__RPC_SYS_PB_TIMAC_APPSRV),
-                        APPSRV__CMD_ID__APPSRV_COLLECTOR_STATE_CNG_IND);
-
-    if(pMsg)
-    {
-        pMsg->pLogPrefix = "appsrv_collector_state_cng";
-        MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
-        appsrv_collector_state_cng_update_ind__pack(pDATA,
-                                                    &(pMsg->iobuf[
-                                                          pMsg->iobuf_idx]));
-        MT_MSG_wrBuf(pMsg, NULL, len);
-        appsrv_broadcast(pMsg);
-
-        MT_MSG_free(pMsg);
-        pMsg = NULL;
-    }
-
-    free_AppsrvCollectorStateCngUpdateInd(pDATA);
+    MT_MSG_setDestIface(pMsg, &appClient_mt_interface_template);
+    MT_MSG_wrBuf(pMsg, NULL, len);
+    appsrv_broadcast(pMsg);
+    MT_MSG_free(pMsg);
+    pMsg = NULL;
 }
 
 /*********************************************************************
@@ -896,7 +1149,7 @@ void appsrv_stateChangeUpdate(Cllc_states_t state)
  *********************************************************************/
 
 /*!
- * @brief handle a request fromm a client.
+ * @brief handle a request from a client.
  * @param pCONN - the client connection details
  * @param pMsg  - the message we received.
  */
@@ -905,7 +1158,7 @@ static void appsrv_handle_appClient_request( struct appsrv_connection *pCONN,
 {
     int subsys = _bitsXYof(pMsg->cmd0 , 4, 0);
     int handled = true;
-    if(subsys != TIMAC_APP_SRV_SYS_ID__RPC_SYS_PB_TIMAC_APPSRV)
+    if(subsys != APPSRV_SYS_ID_RPC)
     {
         handled = false;
     }
@@ -919,34 +1172,30 @@ static void appsrv_handle_appClient_request( struct appsrv_connection *pCONN,
             /*
              * NOTE: ADD MORE ITEMS HERE TO EXTEND THE EXAMPLE
              */
-        case APPSRV__CMD_ID__APPSRV_GET_DEVICE_ARRAY_REQ:
+        case APPSRV_GET_DEVICE_ARRAY_REQ:
             /* Rcvd data from Client */
-            LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
-            LOG_printf(LOG_APPSRV_MSG_CONTENT, "rcvd get device array msg\n");
-            LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
+            LOG_printf(LOG_APPSRV_MSG_CONTENT, "\nrcvd get device array msg\n");
             appsrv_processGetDeviceArrayReq(pCONN);
             break;
 
-        case APPSRV__CMD_ID__APPSRV_GET_NWK_INFO_REQ:
-            LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
-            LOG_printf(LOG_APPSRV_MSG_CONTENT,"getnwkinfo req message\n");
-            LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
+        case APPSRV_GET_NWK_INFO_REQ:
+            LOG_printf(LOG_APPSRV_MSG_CONTENT,"\ngetnwkinfo req message\n");
             appsrv_processGetNwkInfoReq(pCONN);
             break;
 
-        case APPSRV__CMD_ID__APPSRV_SET_JOIN_PERMIT_REQ:
-            LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
-            LOG_printf(LOG_APPSRV_MSG_CONTENT,"rcvd join premit message\n ");
-            LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
+        case APPSRV_SET_JOIN_PERMIT_REQ:
+            LOG_printf(LOG_APPSRV_MSG_CONTENT,"\nrcvd join premit message\n ");
             appsrv_processSetJoinPermitReq(pCONN, pMsg);
             break;
 
-        case APPSRV__CMD_ID__APPSRV_TX_DATA_REQ:
-            LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
-            LOG_printf(LOG_APPSRV_MSG_CONTENT,"rcvd req to send message to a device\n ");
-            LOG_printf(LOG_APPSRV_MSG_CONTENT, "______________________________\n");
+        case APPSRV_TX_DATA_REQ:
+            LOG_printf(LOG_APPSRV_MSG_CONTENT,"\nrcvd req to send message to a device\n ");
             appsrv_processTxDataReq(pCONN, pMsg);
             break;
+
+        case APPSRV_RMV_DEVICE_REQ:
+            LOG_printf(LOG_APPSRV_MSG_CONTENT,"\nrcvd req to remove device\n ");
+            appsrv_processRemoveDeviceReq(pCONN, pMsg);
         }
     }
     if(!handled)
@@ -1043,7 +1292,6 @@ static intptr_t s2appsrv_thread(intptr_t cookie)
         /* Same *MARKER* line at the end of the message */
         LOG_printf(LOG_DBG_MT_MSG_traffic, "END MSG: %s\n", star_line);
         MT_MSG_free(pMsg);
-        pMsg = NULL;
     }
 
     /* There is an interock here.
@@ -1258,7 +1506,7 @@ void APP_main(void)
     if( r == 0 )
     {
         FATAL_printf( "Did not get device version info at startup - Bailing out\n");
-    } 
+    }
 
     LOG_printf( LOG_ALWAYS, "Found Mac Co-Processor Version info is:\n");
     LOG_printf( LOG_ALWAYS, "Transport: %d\n", MT_DEVICE_version_info.transport );
@@ -1267,6 +1515,7 @@ void APP_main(void)
     LOG_printf( LOG_ALWAYS, "    Minor: %d\n", MT_DEVICE_version_info.minor     );
     LOG_printf( LOG_ALWAYS, "    Maint: %d\n", MT_DEVICE_version_info.maint     );
 
+#ifdef IS_HEADLESS
     fprintf( stdout, "Found Mac Co-Processor Version info is:\n");
     fprintf( stdout, "Transport: %d\n", MT_DEVICE_version_info.transport );
     fprintf( stdout, "  Product: %d\n", MT_DEVICE_version_info.product   );
@@ -1275,6 +1524,7 @@ void APP_main(void)
     fprintf( stdout, "    Maint: %d\n", MT_DEVICE_version_info.maint     );
     fprintf( stdout, "----------------------------------------\n");
     fprintf( stdout, "Start the gateway application\n");
+#endif //IS_HEADLESS
 
     server_thread_id = THREAD_create("server-thread",
                                      appsrv_server_thread, 0,
@@ -1282,7 +1532,7 @@ void APP_main(void)
 
     collector_thread_id = THREAD_create("collector-thread",
                                         collector_thread, 0, THREAD_FLAGS_DEFAULT);
-  
+
 
     for(;;)
     {
@@ -1378,4 +1628,3 @@ void APP_defaults(void)
  *  End:
  *  vim:set  filetype=c tabstop=4 shiftwidth=4 expandtab=true
  */
-

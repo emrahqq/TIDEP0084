@@ -39,8 +39,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
  *****************************************************************************/
  #ifndef APPINTERFACE_H
  #define APPINTERFACE_H
@@ -171,6 +171,11 @@ void APP_main(void);
  * @param pMsg - msg to broadcast
  */
 extern void appsrv_broadcast(struct mt_msg *pMsg);
+
+/*!
+ * @brief Send remove device response to gateway
+ */
+extern void appsrv_send_removeDeviceRsp(void);
 
 #ifdef __cplusplus
 }

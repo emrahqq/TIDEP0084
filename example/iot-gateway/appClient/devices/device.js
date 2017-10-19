@@ -9,25 +9,25 @@
 
  ******************************************************************************
  $License: BSD3 2016 $
-  
+
    Copyright (c) 2015, Texas Instruments Incorporated
    All rights reserved.
-  
+
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
-  
+
    *  Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
-  
+
    *  Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-  
+
    *  Neither the name of Texas Instruments Incorporated nor the names of
       its contributors may be used to endorse or promote products derived
       from this software without specific prior written permission.
-  
+
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
    THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -47,11 +47,27 @@
 /********************************************************************
  * Variables
  * *****************************************************************/
-var protobuf = require("protocol-buffers");
 var fs = require("fs");
-/* set-up to decode/encode proto messages */
-var dtimac_pb = protobuf(fs.readFileSync('appClient/protofiles/appsrv.proto'));
 var SmartObject = require('smartobject');
+var Long = require("long");
+
+/********************************************************************
+ * Defines
+ * *****************************************************************/
+var Smsgs_dataFields = Object.freeze({
+    tempSensor: 0x0001,
+    lightSensor: 0x0002,
+    humiditySensor: 0x0004,
+    msgStats: 0x0008,
+    configSettings: 0x0010,
+    pressureSensor: 0x0020,
+    motionSensor: 0x0040,
+    batteryVoltageSensor: 0x0080,
+    hallEffectSensor: 0x0100,
+    fanSensor: 0x0200,
+    doorLockSensor: 0x0400
+});
+
 
 /*!
  * @brief      Constructor for device objects
@@ -60,36 +76,41 @@ var SmartObject = require('smartobject');
  * 			   extAddress - 64 bit IEEE address of the device
  * 			   capabilityInfo - device capability information
  *
- * @return     device object
+ * @retun      device object
  */
 function Device(shortAddress, extAddress, capabilityInfo) {
     var devInfo = this;
     devInfo.shortAddress = shortAddress;
-    devInfo.extAddress = extAddress;
+    devInfo.extAddress = extAddress.toString(16);
     devInfo.capabilityInfo = capabilityInfo;
     devInfo.active = 'true';
     devInfo.so = new SmartObject();
     return devInfo;
 }
 
+/**
+ *
+ */
 function updateSensor(so, type, instance, value, units) {
-	/* Sensor already exists, update its values */
-	if (so.has(type, instance)) {
-		so.write(type, instance, 'sensorValue', value, function (err, data) { });
-		if (value < so.get(type, instance, 'minMeaValue'))
-			so.write(type, instance, 'minMeaValue', value, function (err, data) { });
-		if (value > so.get(type, instance, 'maxMeaValue'))
-			so.write(type, instance, 'maxMeaValue', value, function (err, data) { });
-	}
-	/* Need to initialize the sensor */
-	else {
-		so.init(type, instance, {
-			"sensorValue" : value,
-			"units" : units,
-			"minMeaValue" : value,
-			"maxMeaValue" : value
-		});
-	}
+    /* Sensor already exists, update its values */
+    if (so.has(type, instance)) {
+        so.write(type, instance, 'sensorValue', value, function (err, data) { });
+
+        if (value < so.get(type, instance, 'minMeaValue'))
+            so.write(type, instance, 'minMeaValue', value, function (err, data) { });
+
+        if (value > so.get(type, instance, 'maxMeaValue'))
+            so.write(type, instance, 'maxMeaValue', value, function (err, data) { });
+    }
+    /* Need to initialize the sensor */
+    else {
+        so.init(type, instance, {
+            "sensorValue": value,
+            "units": units,
+            "minMeaValue": value,
+            "maxMeaValue": value
+        });
+    }
 }
 
 function updateXYZSensor(so, type, instance, x, y, z, units) {
@@ -117,6 +138,7 @@ function updateDigInSensor(so, type, instance, state, desc){
 		so.write(type, instance, 'dInState', state, function (err, data) { });
 		so.write(type, instance, 'sensorType', desc, function (err, data) { });
 	}
+
 	/* Need to initialize the sensor */
 	else {
 		so.init(type, instance, {
@@ -124,102 +146,89 @@ function updateDigInSensor(so, type, instance, state, desc){
 			"sensorType" : desc
 		});
 	}
-}	
+}
 
 /* Prototype Functions */
 Device.prototype.rxSensorData = function (sensorData) {
-    /* received message from the device, set as active */
+    /* recieved message from the device, set as active */
     this.active = 'true';
 	/* Check the support sensor Types and
 	add information elements for those */
-    if (sensorData.sDataMsg.frameControl &
-        dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_tempSensor) {
-       
+    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.tempSensor){
         /* update the sensor values */
         this.temperaturesensor = {
             ambienceTemp: sensorData.sDataMsg.tempSensor.ambienceTemp,
             objectTemp: sensorData.sDataMsg.tempSensor.objectTemp
         };
-
         // create/upate ambience temp data
         updateSensor(this.so, 'temperature', 0, sensorData.sDataMsg.tempSensor.ambienceTemp, 'Cels');
-        
-
-	// create/update object temp data
-        // enable the line below to send the object temp to the cloud
-	//updateSensor(this.so, 'temperature', 1, sensorData.sDataMsg.tempSensor.objectTemp, 'Cels');
-
-
-        //updateSensor(this.so, 'humidity', 0, 21.3, '\%rH');
-        //updateSensor(this.so, 'barometer', 0, 986.7, 'mBar');
-        //updateXYZSensor(this.so, 'accelerometer', 0, 0.02, 0.02, -0.96, 'G');
-        //updateXYZSensor(this.so, 'gyrometer', 0, -1.45, 2.13, 0.83, 'deg/s');
-        //updateXYZSensor(this.so, 'magnetometer', 0, 0.00, 0.00, 0.00, 'uT');
-        //updateSensor(this.so, 'illuminance', 0, 626.7, 'Lux');
-        //updateDigInSensor(this.so, 'dIn', 0, 1, 'Reed Switch');
     }
-
-    if (sensorData.sDataMsg.frameControl &
-        dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_lightSensor) {
-        
+    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.lightSensor) {
         /* update the sensor values */
         this.lightsensor = {
-            rawData: sensorData.sDataMsg.lightSensor.rawData 
+            rawData: sensorData.sDataMsg.lightSensor.rawData
         };
-
-	updateSensor(this.so, 'illuminance', 0, sensorData.sDataMsg.lightSensor.rawData, 'Lux');
+        updateSensor(this.so, 'illuminance', 0, sensorData.sDataMsg.lightSensor.rawData, 'Lux');
     }
-
-    if (sensorData.sDataMsg.frameControl &
-        dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_humiditySensor) {
+    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.humiditySensor) {
         /* update the sensor values */
         this.humiditysensor = {
             temp: sensorData.sDataMsg.humiditySensor.temp,
             humidity: sensorData.sDataMsg.humiditySensor.humidity
         };
-	
-	// enable the line below to send the temperature sensor data reported by the humdity sensor
-        //updateSensor(this.so, 'temperature', 2, sensorData.sDataMsg.humiditySensor.temp, 'Cels');
         updateSensor(this.so, 'humidity', 0, sensorData.sDataMsg.humiditySensor.humidity, '%RH');
-	
-
     }
 
-
-
-    if (sensorData.sDataMsg.frameControl &
-        dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_pressureSensor) {
+    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.pressureSensor) {
         /* update the sensor values */
         this.pressuresensor = {
             temp: sensorData.sDataMsg.pressureSensor.tempValue,
-            humidity: sensorData.sDataMsg.pressureSensor.pressureValue
+            pressure: sensorData.sDataMsg.pressureSensor.pressureValue
         };
-     
-     updateSensor(this.so, 'barometer', 0, sensorData.sDataMsg.pressureSensor.pressureValue, 'mBar');
-
+        updateSensor(this.so, 'barometer', 0, sensorData.sDataMsg.pressureSensor.pressureValue, 'mBar');
     }
 
-    if (sensorData.sDataMsg.frameControl & 
-        dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_motionSensor) {
-      this.motionsensor = {
-        isMotion: sensorData.sDataMsg.motionSensor.isMotion
+    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.motionSensor) {
+            this.motionsensor = {
+                isMotion: sensorData.sDataMsg.motionSensor.isMotion
       };
-      updateDigInSensor(this.so, 'Motion Sensor', 0, sensorData.sDataMsg.motionSensor.isMotion, 'Motion Sensor');
+      updateDigInSensor(this.so, 'motion', 0, sensorData.sDataMsg.motionSensor.isMotion, 'Motion Sensor');
     }
-    if (sensorData.sDataMsg.frameControl & 
-        dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_batterySensor) {
-      this.batterysensor = {
-        voltageValue: sensorData.sDataMsg.batterySensor.voltageValue
-      };
 
+    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.batteryVoltageSensor) {
+        this.batterysensor = {
+            voltage: sensorData.sDataMsg.batterySensor.voltageValue
+      };
       updateSensor(this.so, 'voltage', 0, sensorData.sDataMsg.batterySensor.voltageValue, 'mV');
-
     }
 
+    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.hallEffectSensor) {
+      this.halleffectsensor = {
+        isOpen: sensorData.sDataMsg.hallEffectSensor.isOpen,
+        isTampered: sensorData.sDataMsg.hallEffectSensor.isTampered
+      };
+      updateDigInSensor(this.so, 'halleffect', 0, sensorData.sDataMsg.hallEffectSensor.isOpen, 'Door/Window Sensor');
+    }
 
+    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.fanSensor) {
+        this.fansensor = {
+            fanSpeed: sensorData.sDataMsg.fanSensor.fanSpeed
+        };
+        updateSensor(this.so, 'fan', 0, sensorData.sDataMsg.fanSensor.fanSpeed, "Fan Speed");
+    }
+
+    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.doorLockSensor) {
+        this.doorlocksensor = {
+            isLocked: sensorData.sDataMsg.doorLockSensor.isLocked
+        };
+        updateDigInSensor(this.so, 'doorlock', 0, sensorData.sDataMsg.doorLockSensor.isLocked, "Lock Status");
+    }
 
     /* update rssi information */
     this.rssi = sensorData.rssi;
+
+    /* time stanpd of last data recieved*/
+    this.lastreported = getDateTime();
 }
 
 Device.prototype.rxConfigRspInd = function (devConfigData) {
@@ -228,46 +237,24 @@ Device.prototype.rxConfigRspInd = function (devConfigData) {
         device.active = 'true';
 		/* Check the support sensor Types and add
 		information elements for those */
-        if (devConfigData.sConfigMsg.frameControl &
-            dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_tempSensor) {
+        if (devConfigData.sConfigMsg.frameControl & Smsgs_dataFields.tempSensor) {
             /* initialize sensor information element */
             device.temperaturesensor = {
                 ambienceTemp: 0,
                 objectTemp: 0
             };
         }
-        if (devConfigData.sConfigMsg.frameControl &
-            dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_lightSensor) {
+        if (devConfigData.sConfigMsg.frameControl & Smsgs_dataFields.lightSensor) {
             /* initialize sensor information element */
             device.lightsensor = {
                 rawData: 0
             };
         }
-        if (devConfigData.sConfigMsg.frameControl &
-            dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_humiditySensor) {
+        if (devConfigData.sConfigMsg.frameControl & Smsgs_dataFields.humiditySensor) {
             /* initialize sensor information element */
             device.humiditysensor = {
                 temp: 0,
                 humidity: 0
-            };
-        }
-        if (devConfigData.sConfigMsg.frameControl & 
-          dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_pressureSensor){
-            device.pressuresensor = {
-              tempValue: 0,
-              pressureValue: 0
-            };
-        }
-        if (devConfigData.sConfigMsg.frameControl &
-          dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_motionSensor) {
-          device.motionsensor = {
-            isMotion: 0
-          };
-        }
-       if (devConfigData.sConfigMsg.frameControl & 
-        dtimac_pb.Smsgs_dataFields.Smsgs_dataFields_batterySensor) {
-            device.batterysensor = {
-                voltageValue: 0
             };
         }
         device.reportingInterval = devConfigData.sConfigMsg.reportingInterval;
@@ -289,5 +276,31 @@ Device.prototype.devUpdateInfo = function (shortAddr, capInfo) {
     this.capabilityInfo = capInfo;
     this.active = 'true';
 }
+
+function getDateTime() {
+
+    var date = new Date();
+
+    var hour = date.getHours();
+    hour = (hour < 10 ? "0" : "") + hour;
+
+    var min  = date.getMinutes();
+    min = (min < 10 ? "0" : "") + min;
+
+    var sec  = date.getSeconds();
+    sec = (sec < 10 ? "0" : "") + sec;
+
+    var year = date.getFullYear();
+
+    var month = date.getMonth() + 1;
+    month = (month < 10 ? "0" : "") + month;
+
+    var day  = date.getDate();
+    day = (day < 10 ? "0" : "") + day;
+
+    return hour + ":" + min + ":" + sec + " " + year + "-" + month + "-" + day ;
+
+}
+
 
 module.exports = Device;

@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
  *****************************************************************************/
 #ifndef CSF_H
 #define CSF_H
@@ -110,10 +110,10 @@ extern void Csf_processEvents(void);
 extern bool Csf_getNetworkInformation(Llc_netInfo_t *pInfo);
 
 /*!
- * @brief       The application calls this function to indicate that it has 
+ * @brief       The application calls this function to indicate that it has
  *              started or restored the device in a network.
  *
- *              The information will be saved and used to determine if a 
+ *              The information will be saved and used to determine if a
  *              network was already started and should be restored instead
  *              of started.
  *
@@ -137,6 +137,14 @@ extern void Csf_networkUpdate(bool restored, Llc_netInfo_t *pNetworkInfo);
 extern ApiMac_assocStatus_t Csf_deviceUpdate(
                 ApiMac_deviceDescriptor_t *pDevInfo,
                 ApiMac_capabilityInfo_t *pCapInfo);
+
+/*!
+ * @brief       The application calls this function to indicate that a device
+ *              disassociated.
+ *
+ * @param       pSrcAddr - short address of the device that disassociated
+ */
+extern void Csf_deviceDisassocUpdate( ApiMac_sAddr_t *pSrcAddr );
 
 /*!
  * @brief       The application calls this function to indicate that a device
@@ -180,6 +188,37 @@ extern void Csf_deviceSensorDataUpdate(ApiMac_sAddr_t *pSrcAddr, int8_t rssi,
                                        Smsgs_sensorMsg_t *pMsg);
 
 /*!
+ The application calls this function to indicate that a device
+ has reported its FW version.
+
+ Public function defined in csf.h
+ */
+ /*!
+ * @brief       The application calls this function to indicate that a device
+ *              has reported its FW version.
+ *
+ * @param       pSrcAddr - short address of the device that sent the message
+ * @param       fwVerStr - the FW version string
+ */
+extern void Csf_deviceSensorFwVerUpdate(uint16_t srcAddr, char *fwVerStr);
+
+/*!
+ The application calls this function to indicate that a device
+ has requested an OAD block.
+
+ Public function defined in csf.h
+ */
+ /*!
+ * @brief       The application calls this function to indicate that a device
+ *              has reported its FW version.
+ *
+ * @param       pSrcAddr  - short address of the device that sent the message
+ * @param       blockNum  - block requested
+ * @param       NumBlocks - Total number of block
+ */
+extern void Csf_deviceSensorOadUpdate( uint16_t srcAddr, uint16_t imgId, uint16_t blockNum, uint16_t NumBlocks);
+
+/*!
  * @brief       The application calls this function to indicate that a device
  *              set a Toggle LED Response message.
  *
@@ -189,7 +228,7 @@ extern void Csf_deviceSensorDataUpdate(ApiMac_sAddr_t *pSrcAddr, int8_t rssi,
 extern void Csf_toggleResponseReceived(ApiMac_sAddr_t *pSrcAddr, bool ledState);
 
 /*!
- * @brief       The application calls this function to indicate that the 
+ * @brief       The application calls this function to indicate that the
  *              Coordinator's state has changed.
  *
  * @param       state - new state

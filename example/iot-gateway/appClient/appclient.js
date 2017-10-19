@@ -8,25 +8,25 @@
 
  ******************************************************************************
  $License: BSD3 2016 $
-  
+
    Copyright (c) 2015, Texas Instruments Incorporated
    All rights reserved.
-  
+
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
-  
+
    *  Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
-  
+
    *  Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-  
+
    *  Neither the name of Texas Instruments Incorporated nor the names of
       its contributors may be used to endorse or promote products derived
       from this software without specific prior written permission.
-  
+
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
    THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -47,12 +47,14 @@
  * Require Modules for connection with TIMAC Application Server
  * ********************************************************************/
 var net = require("net");
-var protobuf = require("protocol-buffers");
 var fs = require("fs");
 var events = require("events");
 
 var Device = require('./devices/device.js');
 var NwkInfo = require('./nwkinfo/nwkinfo.js');
+var ByteBuffer = require("bytebuffer");
+var Long = require("long");
+
 
 /* *********************************************************************
  * Defines
@@ -66,6 +68,60 @@ const PKT_HEADER_SIZE = 4;
 const PKT_HEADER_LEN_FIELD = 0;
 const PKT_HEADER_SUBSYS_FIELD = 2;
 const PKT_HEADER_CMDID_FIELD = 3;
+const APPSRV_SYS_ID_RPC = 10;
+
+/* Toggle debug print statements */
+const PRINT_DEBUG = true;
+
+var cmdIds = Object.freeze({
+    DEVICE_JOINED_IND: 0,
+    DEVICE_LEFT_IND: 1,
+    NWK_INFO_IND : 2,
+    GET_NWK_INFO_REQ : 3,
+    GET_NWK_INFO_RSP : 4,
+    GET_NWK_INFO_CNF : 5,
+    GET_DEVICE_ARRAY_REQ : 6,
+    GET_DEVICE_ARRAY_CNF : 7,
+    DEVICE_NOTACTIVE_UPDATE_IND : 8,
+    DEVICE_DATA_RX_IND : 9,
+    COLLECTOR_STATE_CNG_IND : 10,
+    SET_JOIN_PERMIT_REQ : 11,
+    SET_JOIN_PERMIT_CNF : 12,
+    TX_DATA_REQ : 13,
+    TX_DATA_CNF : 14,
+    RMV_DEVICE_REQ: 15,
+    RMV_DEVICE_RSP: 16,
+    DEV_MOVED_IND: 17
+});
+
+var Smsgs_dataFields = Object.freeze({
+    tempSensor: 0x0001,
+    lightSensor: 0x0002,
+    humiditySensor: 0x0004,
+    msgStats: 0x0008,
+    configSettings: 0x0010,
+    pressureSensor: 0x0020,
+    motionSensor: 0x0040,
+    batteryVoltageSensor: 0x0080,
+    hallEffectSensor: 0x0100,
+    fanSensor: 0x0200,
+    doorLockSensor: 0x0400
+});
+
+var smgsCmdIds = Object.freeze({
+    CONFIG_REQ: 1,
+    CONFIG_RSP: 2,
+    TRACKING_REQ: 3,
+    TRACKING_RSP: 4,
+    SENSOR_DATA: 5,
+    TOGGLE_REQ: 6,
+    TOGGLE_RSP: 7
+});
+
+var sDataMsgTypes = Object.freeze({
+    SENSOR_DATA_MSG: 0x01,
+    CONFIG_RSP_MSG: 0x02
+});
 
 /* *********************************************************************
  * Variables
@@ -96,8 +152,6 @@ function Appclient() {
     events.EventEmitter.call(this);
     /* set-up to connect to app server */
     var appClient = net.Socket();
-    /* set-up to decode/encode proto messages */
-    var timac_pb = protobuf(fs.readFileSync('appClient/protofiles/appsrv.proto'));
     /* Start the connection with app Server */
     appClient.connect(APP_SERVER_PORT, '127.0.0.1', function () {
         console.log("Connected to App Server");
@@ -115,8 +169,8 @@ function Appclient() {
 		/* connection lost or unable to make connection with the
 		appServer, need to get network and device info back again
 		as those may have changed */
-        console.log("ERROR: Rcvd Error on the socket connection with AppServer");
-        console.log(data);
+        if(PRINT_DEBUG) console.log("ERROR: Rcvd Error on the socket connection with AppServer");
+        if(PRINT_DEBUG) console.log(data);
         appClientReconnect();
     });
     /* Device list array */
@@ -158,57 +212,62 @@ function Appclient() {
 	* @brief        This function is called to handle incoming messages
 	*				from the app server
 	*
-	* @param
+	* @param        data - Incoming data msg buffer
 	*
-	* @return
+	* @return       none
 	*/
     function appC_processIncoming(data) {
         var dataIdx = 0;
         while (dataIdx < data.length) {
             var rx_pkt_len = data[dataIdx + PKT_HEADER_LEN_FIELD] + (data[dataIdx + PKT_HEADER_LEN_FIELD + 1] << 8) + PKT_HEADER_SIZE;
-            var ByteBuffer = require("bytebuffer");
             var rx_pkt_buf = new ByteBuffer(rx_pkt_len, ByteBuffer.LITTLE_ENDIAN);
             rx_pkt_buf.append(data.slice(dataIdx, dataIdx + rx_pkt_len), "hex", 0);
+            if(PRINT_DEBUG) console.log('Incomming Msg: ' + rx_pkt_buf);
             dataIdx = dataIdx + rx_pkt_len;
+
             var rx_cmd_id = rx_pkt_buf.readUint8(PKT_HEADER_CMDID_FIELD);
             switch (rx_cmd_id) {
-                case timac_pb.appsrv_CmdId.APPSRV_GET_NWK_INFO_CNF:
-                    var networkInfoCnf = timac_pb.appsrv_getNwkInfoCnf.decode(rx_pkt_buf.copy(PKT_HEADER_SIZE, rx_pkt_len).buffer);
-                    appC_processGetNwkInfoCnf(JSON.stringify(networkInfoCnf));
+                case cmdIds.DEVICE_JOINED_IND:
+                    if(PRINT_DEBUG) console.log('Device Joined Ind');
+                    appC_processDeviceJoinedIndMsg(rx_pkt_buf);
                     break;
-                case timac_pb.appsrv_CmdId.APPSRV_GET_DEVICE_ARRAY_CNF:
-                    var devArray = timac_pb.appsrv_getDeviceArrayCnf.decode(rx_pkt_buf.copy(PKT_HEADER_SIZE, rx_pkt_len).buffer);
-                    appC_processGetDevArrayCnf(JSON.stringify(devArray));
+                case cmdIds.NWK_INFO_IND:
+                    if(PRINT_DEBUG) console.log('Network Info Ind');
+                    appC_processNetworkUpdateIndMsg(rx_pkt_buf);
                     break;
-                case timac_pb.appsrv_CmdId.APPSRV_NWK_INFO_IND:
-                    var networkInfoInd = timac_pb.appsrv_nwkInfoUpdateInd.decode(rx_pkt_buf.copy(PKT_HEADER_SIZE, rx_pkt_len).buffer);
-                    appC_processNetworkUpdateIndMsg(JSON.stringify(networkInfoInd));
+                case cmdIds.GET_NWK_INFO_CNF:
+                    if(PRINT_DEBUG) console.log('Network Info Cnf');
+                    appC_processGetNwkInfoCnf(rx_pkt_buf);
                     break;
-                case timac_pb.appsrv_CmdId.APPSRV_DEVICE_JOINED_IND:
-                    var newDeviceInfo = timac_pb.appsrv_deviceUpdateInd.decode(rx_pkt_buf.copy(PKT_HEADER_SIZE, rx_pkt_len).buffer);
-                    appC_processDeviceJoinedIndMsg(JSON.stringify(newDeviceInfo));
+                case cmdIds.GET_DEVICE_ARRAY_CNF:
+                    if(PRINT_DEBUG) console.log('Device Array Cnf');
+                    appC_processGetDevArrayCnf(rx_pkt_buf);
                     break;
-                case timac_pb.appsrv_CmdId.APPSRV_DEVICE_NOTACTIVE_UPDATE_IND:
-                    var inactiveDevInfo = timac_pb.appsrv_deviceNotActiveUpdateInd.decode(rx_pkt_buf.copy(PKT_HEADER_SIZE, rx_pkt_len).buffer);
-                    appC_processDeviceNotActiveIndMsg(JSON.stringify(inactiveDevInfo));
+                case cmdIds.DEVICE_NOTACTIVE_UPDATE_IND:
+                    if(PRINT_DEBUG) console.log('Notactive Update Ind');
+                    appC_processDeviceNotActiveIndMsg(rx_pkt_buf);
                     break;
-                case timac_pb.appsrv_CmdId.APPSRV_DEVICE_DATA_RX_IND:
-                    var devData = timac_pb.appsrv_deviceDataRxInd.decode(rx_pkt_buf.copy(PKT_HEADER_SIZE, rx_pkt_len).buffer);
-                    appC_processDeviceDataRxIndMsg(JSON.stringify(devData));
+                case cmdIds.DEVICE_DATA_RX_IND:
+                    if(PRINT_DEBUG) console.log('Data Rx Ind');
+                    appC_processDeviceDataRxIndMsg(rx_pkt_buf);
                     break;
-                case timac_pb.appsrv_CmdId.APPSRV_COLLECTOR_STATE_CNG_IND:
-                    var coordState = timac_pb.appsrv_collectorStateCngUpdateInd.decode(rx_pkt_buf.copy(PKT_HEADER_SIZE, rx_pkt_len).buffer);
-                    appC_processStateChangeUpdate(JSON.stringify(coordState));
+                case cmdIds.COLLECTOR_STATE_CNG_IND:
+                    if(PRINT_DEBUG) console.log('State Change Ind');
+                    appC_processStateChangeUpdate(rx_pkt_buf);
                     break;
-                case timac_pb.appsrv_CmdId.APPSRV_SET_JOIN_PERMIT_CNF:
-                    var permitJoinCnf = timac_pb.appsrv_setJoinPermitCnf.decode(rx_pkt_buf.copy(PKT_HEADER_SIZE, rx_pkt_len).buffer);
-                    appC_processSetJoinPermitCnf(JSON.stringify(permitJoinCnf));
+                case cmdIds.SET_JOIN_PERMIT_CNF:
+                    if(PRINT_DEBUG) console.log('Join Permit Cnf');
+                    appC_processSetJoinPermitCnf(rx_pkt_buf);
                     break;
-                case timac_pb.appsrv_CmdId.APPSRV_TX_DATA_CNF:
-                    /* Add Applciation specific handling here*/
+                case cmdIds.TX_DATA_CNF:
+                    if(PRINT_DEBUG) console.log('Tx Data Cnf');
+                    break;
+                case cmdIds.RMV_DEVICE_RSP:
+                    if(PRINT_DEBUG) console.log('Rmv Device Rsp');
+                    appC_processRemoveDeviceRsp(rx_pkt_buf);
                     break;
                 default:
-                    console.log("ERROR: appClient: CmdId not processed: ", rx_cmd_id);
+                    if(PRINT_DEBUG) console.log('ERROR: cmdId not processed');
             }
         }
     }
@@ -217,18 +276,44 @@ function Appclient() {
 	* @brief        This function is called to handle incoming network update
 	* 				message from the application
 	*
-	* @param
+	* @param        Incoming msg data buffer
 	*
-	* @return
+	* @return       none
 	*/
-    function appC_processGetNwkInfoCnf(networkInfo) {
-        var nInfo = JSON.parse(networkInfo);
+    function appC_processGetNwkInfoCnf(data){
+        var ind = PKT_HEADER_SIZE;
+
+        /* TODO: Make this simpler, no need for multiple nested objects */
+        var nInfo = {};
+        nInfo.nwkinfo = {};
+        nInfo.nwkinfo.nwkInfo = {};
+        nInfo.nwkinfo.nwkInfo.devInfo = {};
+
+        nInfo.status = data.readUint8(ind);
+        ind += 1;
+
+        nInfo.nwkinfo.nwkInfo.devInfo.panID = data.readUint16(ind);
+        ind += 2;
+        nInfo.nwkinfo.nwkInfo.devInfo.shortAddress = data.readUint16(ind);
+        ind += 2;
+        nInfo.nwkinfo.nwkInfo.devInfo.extAddress = data.readUint64(ind);
+        ind += 8;
+        nInfo.nwkinfo.nwkInfo.channel = data.readUint8(ind);
+        ind += 1;
+        nInfo.nwkinfo.nwkInfo.fh = data.readUint8(ind);
+        ind += 1;
+        nInfo.nwkinfo.securityEnabled = data.readUint8(ind);
+        ind += 1;
+        nInfo.nwkinfo.networkMode = data.readUint8(ind),
+        ind += 1;
+        nInfo.nwkinfo.state = data.readUint8(ind)
+
         if (nInfo.status != 1) {
 			/* Network not yet started, no nwk info returned
 			by app server keep waiting until the server
 			informs of the network info via network update indication
 			*/
-            console.log("network not started yet, now waiting for updates");
+            if(PRINT_DEBUG) console.log('Network not started; Waiting for updates.');
             return;
         }
         if (typeof self.nwkInfo === "undefined") {
@@ -236,12 +321,14 @@ function Appclient() {
             self.nwkInfo = new NwkInfo(nInfo);
         }
         else {
-            /* update the information */
+            /* Update the network information */
             self.nwkInfo.updateNwkInfo(nInfo);
         }
-        /* send the network information */
+        if(PRINT_DEBUG) console.log(self.nwkInfo);
+
+        /* Send update to web-client */
         appClientInstance.emit('nwkUpdate');
-        /* Get Device array from appServer */
+        /* Get device array from appsrv */
         appC_getDevArrayFromAppServer();
     }
 
@@ -249,42 +336,94 @@ function Appclient() {
 	* @brief        This function is called to handle incoming device array
 	* 				cnf message from the application
 	*
-	* @param
+	* @param        data - Incoming msg data buffer
 	*
-	* @return
+	* @return       none
 	*/
-    function appC_processGetDevArrayCnf(deviceArray) {
-	/* erase the existing information, we will update
-	information with the incoming information */
+    function appC_processGetDevArrayCnf(data) {
+        /* Erase the exsisting infomration we will update
+		information with the incoming information */
         self.connectedDeviceList = [];
-        var devArray = JSON.parse(deviceArray);
+        var ind = PKT_HEADER_SIZE;
+
+        var status = data.readUint8(ind);
+        ind += 1;
+        var n = data.readUint16(ind);
+        ind += 2;
+
         var i;
-        for (i = 0; i < devArray.devInfo.length; i++) {
-            var newDev = new Device(devArray.devInfo[i].devInfo.shortAddress, devArray.devInfo[i].devInfo.extAddress, devArray.devInfo[i].capInfo);
-            /* Add device to the list */
+        for(i = 0; i < n; i++){
+            var panId = data.readUint16(ind);
+            ind += 2;
+            var shortAddress = data.readUint16(ind);
+            ind += 2;
+            var extendedAddress = data.readUint64(ind);
+            ind += 8;
+
+            var capInfo = {};
+            capInfo.panCoord = data.readUint8(ind);
+            ind += 1;
+            capInfo.ffd = data.readUint8(ind);
+            ind += 1;
+            capInfo.mainsPower = data.readUint8(ind);
+            ind += 1;
+            capInfo.rxOnWhenIdle = data.readUint8(ind);
+            ind += 1;
+            capInfo.security = data.readUint8(ind);
+            ind += 1;
+            capInfo.allocAddr = data.readUint8(ind)
+            ind += 1;
+
+            var newDev = new Device(shortAddress, extendedAddress, capInfo);
             self.connectedDeviceList.push(newDev);
         }
+        if(PRINT_DEBUG) console.log(self.connectedDeviceList);
         appClientInstance.emit('getdevArrayRsp');
     }
+
 	/*!
 	* @brief        This function is called to handle incoming network update
 	* 				ind message from the application
 	*
-	* @param
+	* @param        Incoming msg data buffer
 	*
-	* @return
+	* @return       none
 	*/
-    function appC_processNetworkUpdateIndMsg(networkInfo) {
-        var nInfo = JSON.parse(networkInfo);
+    function appC_processNetworkUpdateIndMsg(data) {
+        var ind = PKT_HEADER_SIZE;
+
+        /* TODO: Make this simpler by removing nested objects */
+        var nInfo = {};
+        nInfo.nwkinfo = {};
+        nInfo.nwkinfo.nwkInfo = {};
+        nInfo.nwkinfo.nwkInfo.devInfo = {};
+
+        nInfo.nwkinfo.nwkInfo.devInfo.panID = data.readUint16(ind);
+        ind += 2;
+        nInfo.nwkinfo.nwkInfo.devInfo.shortAddress = data.readUint16(ind);
+        ind += 2;
+        nInfo.nwkinfo.nwkInfo.devInfo.extAddress = data.readUint64(ind);
+        ind += 8;
+        nInfo.nwkinfo.nwkInfo.channel = data.readUint8(ind);
+        ind += 1;
+        nInfo.nwkinfo.nwkInfo.fh = data.readUint8(ind);
+        ind += 1;
+        nInfo.nwkinfo.securityEnabled = data.readUint8(ind);
+        ind += 1;
+        nInfo.nwkinfo.networkMode = data.readUint8(ind),
+        ind += 1;
+        nInfo.nwkinfo.state = data.readUint8(ind)
+
         if (typeof self.nwkInfo === "undefined") {
-            /* create a new network info element */
+            /* Create a new network info element */
             self.nwkInfo = new NwkInfo(nInfo);
         }
         else {
-            /* update the information */
+            /* Update the network information */
             self.nwkInfo.updateNwkInfo(nInfo);
         }
-        /* send the netwiork information */
+        if(PRINT_DEBUG) console.log(self.nwkInfo);
+        /* Send update to web-client */
         appClientInstance.emit('nwkUpdate');
     }
 
@@ -293,50 +432,76 @@ function Appclient() {
 	* 				ind message informing of new device join from the
 	* 				application
 	*
-	* @param 		deviceInfo - new device information
+	* @param 		Incoming msg data buffer
 	*
 	* @return       none
 	*/
-    function appC_processDeviceJoinedIndMsg(deviceInfo) {
-        var devInfo = JSON.parse(deviceInfo);
-        /* Check if the device already exists */
-        for (var i = 0; i < self.connectedDeviceList.length; i++) {
-            /* check if extended address match */
-            if (self.connectedDeviceList[i].extAddress == devInfo.devDescriptor.extAddress) {
-                self.connectedDeviceList[i].devUpdateInfo(devInfo.devDescriptor.shortAddress, devInfo.devCapInfo);
-                /* send update to web client */
-                appClientInstance.emit('connDevInfoUpdate', self.connectedDeviceList[i]);
-                return;
-            }
-        }
-        var newDev = new Device(devInfo.devDescriptor.shortAddress, devInfo.devDescriptor.extAddress, devInfo.devCapInfo);
-        /* Add device to the list */
+    function appC_processDeviceJoinedIndMsg(data) {
+        var ind = PKT_HEADER_SIZE;
+
+        /* Skip panId */
+        ind += 2;
+
+        var shortAddress = data.readUint16(ind);
+        ind += 2;
+        var extendedAddress = data.readUint64(ind);
+        ind += 8;
+
+        var capInfo = {}
+        capInfo.panCoord = data.readUint8(ind);
+        ind += 1;
+        capInfo.ffd = data.readUint8(ind);
+        ind += 1;
+        capInfo.mainsPower = data.readUint8(ind);
+        ind += 1;
+        capInfo.rxOnWhenIdle = data.readUint8(ind);
+        ind += 1;
+        capInfo.security = data.readUint8(ind);
+        ind += 1
+        capInfo.allocAddr = data.readUint8(ind);
+
+        var newDev = new Device(shortAddress, extendedAddress, capInfo);
         var devIndex = self.connectedDeviceList.push(newDev) - 1;
-        /* send network update to alert about the new device joining */
-	appClientInstance.emit('nwkUpdate');
-	/* send device update for the newly joined device */
-	appClientInstance.emit('connDevInfoUpdate', self.connectedDeviceList[devIndex]);
+
+        if(PRINT_DEBUG) console.log(newDev);
+
+        /* Send network update */
+        appClientInstance.emit('nwkUpdate');
+
+        /* Send update to web-client */
+        appClientInstance.emit('connDevInfoUpdate', self.connectedDeviceList[devIndex]);
     }
 
 	/*!
 	* @brief        This function is called to handle incoming message informing that
 	* 				 a device is now inactive(?)
 	*
-	* @param 		inactiveDevInfo - inactive device information
+	* @param 		data - Incoming msg data buffer
 	*
-	* @return
+	* @return       none
 	*/
-    function appC_processDeviceNotActiveIndMsg(inactiveDevInfo) {
-        var inactivedeviceInfo = JSON.parse(inactiveDevInfo);
-        /* Find the index of the device in the list */
-        var deviceIdx = findDeviceIndexShortAddr(inactivedeviceInfo.devDescriptor.shortAddress);
+    function appC_processDeviceNotActiveIndMsg(data) {
+        var ind = PKT_HEADER_SIZE;
+
+        /* Skip panId */
+        ind += 2;
+
+        var inactivedeviceInfo = {};
+        inactivedeviceInfo.shortAddress = data.readUint16(ind);
+        ind += 2;
+        inactivedeviceInfo.extAddress = data.readUint64(ind);
+        ind += 8;
+        inactivedeviceInfo.timeout = data.readUint8(ind);
+        ind += 1;
+
+        var deviceIdx = findDeviceIndexShortAddr(inactivedeviceInfo.shortAddress);
         if (deviceIdx !== -1) {
             self.connectedDeviceList[deviceIdx].deviceNotActive(inactivedeviceInfo);
-            /* send update to web client */
+            /* Update the web-client */
             appClientInstance.emit('connDevInfoUpdate', self.connectedDeviceList[deviceIdx]);
         }
         else {
-            console.log("ERROR: rcvd inactive status info for non-existing device");
+            if(PRINT_DEBUG) console.log("ERROR: rcvd inactive status info for non-existing device");
         }
     }
 
@@ -345,58 +510,219 @@ function Appclient() {
 	* 				reception of sensor data message/device config resp
 	*				from a network device
 	*
-	* @param 		devData - incoming message
+	* @param 		data - Incoming msg data buffer
 	*
 	* @return       none
 	*/
-    function appC_processDeviceDataRxIndMsg(devData) {
-        var deviceIdx = -1;
-        var deviceData = JSON.parse(devData);
 
-        /* Find the index of the device in the list */
-        if (deviceData.srcAddr.addrMode == timac_pb.ApiMac_addrType.ApiMac_addrType_short) {
+    function appC_processDeviceDataRxIndMsg(data){
+        var ind = PKT_HEADER_SIZE;
+        var deviceIdx = -1;
+        var deviceData = {};
+        deviceData.srcAddr = {};
+
+        deviceData.srcAddr.addrMode = data.readUint8(ind);
+        ind += 1;
+
+        if(deviceData.srcAddr.addrMode == 3){
+            deviceData.srcAddr.extAddr = data.readUint64(ind);
+            ind += 8;
+            deviceIdx = findDeviceIndexExtAddr(deviceData.srcAddr.extAddress);
+        }
+        else if(deviceData.srcAddr.addrMode == 2){
+            deviceData.srcAddr.shortAddr = data.readUint16(ind);
+            ind += 2;
             deviceIdx = findDeviceIndexShortAddr(deviceData.srcAddr.shortAddr);
         }
-        else if (deviceData.srcAddr.addrMode == timac_pb.ApiMac_addrType.ApiMac_addrType_extended) {
-            deviceIdx = findDeviceIndexExtAddr(deviceData.srcAddr.extAddress.data);
-        }
-        else {
-            console.log("ERROR: illegal addr mode value rcvd in sensor data msg", deviceData.srcAddr.addrMode);
-            return;
-        }
-        if (deviceIdx !== -1) {
-            if (deviceData.sDataMsg) {
-                self.connectedDeviceList[deviceIdx].rxSensorData(deviceData);
-                /* send the update to web client */
-                appClientInstance.emit('connDevInfoUpdate', self.connectedDeviceList[deviceIdx]);
+
+        /* Read signed rssi */
+        deviceData.rssi = data.readInt8(ind);
+        ind += 1;
+
+        deviceData.msgContent = data.readUint8(ind);
+        ind += 1;
+
+        /* Sensor data msg received */
+        if(deviceData.msgContent & sDataMsgTypes.SENSOR_DATA_MSG){
+            deviceData.sDataMsg = {};
+            deviceData.sDataMsg.cmdId = data.readUint8(ind);
+            ind += 1;
+            deviceData.sDataMsg.frameControl = data.readUint16(ind);
+            ind += 2;
+            deviceData.sDataMsg.extAddr = data.readUint64(ind);
+            ind += 8;
+            /* Temperature sensor data received */
+            if(deviceData.sDataMsg.frameControl & Smsgs_dataFields.tempSensor){
+                deviceData.sDataMsg.tempSensor = {};
+                deviceData.sDataMsg.tempSensor.ambienceTemp = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.tempSensor.objectTemp = data.readUint16(ind);
+                ind += 2;
             }
-            else if (deviceData.sConfigMsg) {
-                self.connectedDeviceList[deviceIdx].rxConfigRspInd(deviceData);
-                /* send the update to web client */
+            /* Light sensor data received */
+            if(deviceData.sDataMsg.frameControl & Smsgs_dataFields.lightSensor){
+                deviceData.sDataMsg.lightSensor = {};
+                deviceData.sDataMsg.lightSensor.rawData = data.readUint16(ind);
+                ind += 2;
+            }
+            /* Humididty sensor data received */
+            if(deviceData.sDataMsg.frameControl & Smsgs_dataFields.humiditySensor){
+                deviceData.sDataMsg.humiditySensor = {};
+                deviceData.sDataMsg.humiditySensor.temp = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.humiditySensor.humidity = data.readUint16(ind);
+                ind += 2;
+            }
+            /* Msg Stats recieved */
+            if(deviceData.sDataMsg.frameControl & Smsgs_dataFields.msgStats){
+                deviceData.sDataMsg.msgStats = {};
+                deviceData.sDataMsg.msgStats.joinAttempts = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.joinFails = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.msgsAttempted = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.msgsSent = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.trackingRequests = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.trackingResponseAttempts = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.trackingResponseSent = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.configRequests = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.configResponseAttempts = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.configResponseSent = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.channelAccessFailures = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.macAckFailures = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.otherDataRequestFailures = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.syncLossIndications = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.rxDecryptFailures = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.txEncryptFailures = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.resetCount = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.lastResetReason = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.joinTime = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.msgStats.interimDelay = data.readUint16(ind);
+                ind += 2;
+            }
+            /* Config Settings recieved */
+            if(deviceData.sDataMsg.frameControl & Smsgs_dataFields.configSettings){
+                deviceData.sDataMsg.configSettings = {};
+                deviceData.sDataMsg.configSettings.reportingInterval = data.readUint32(ind);
+                ind += 4;
+                deviceData.sDataMsg.configSettings.pollingInterval = data.readUint32(ind);
+                ind += 4;
+            }
+            /* Pressure sensor data recieved */
+            if(deviceData.sDataMsg.frameControl & Smsgs_dataFields.pressureSensor){
+                deviceData.sDataMsg.pressureSensor = {};
+                deviceData.sDataMsg.pressureSensor.tempValue = data.readUint16(ind);
+                ind += 2;
+                deviceData.sDataMsg.pressureSensor.pressureValue = data.readUint16(ind);
+                ind += 2;
+            }
+            /* Motion sensor data recieved */
+            if(deviceData.sDataMsg.frameControl & Smsgs_dataFields.motionSensor){
+                deviceData.sDataMsg.motionSensor = {};
+                deviceData.sDataMsg.motionSensor.isMotion = data.readUint8(ind);
+                ind += 1;
+            }
+            /* Battery voltage sensor data recieved */
+            if(deviceData.sDataMsg.frameControl & Smsgs_dataFields.batteryVoltageSensor){
+                deviceData.sDataMsg.batterySensor = {};
+                deviceData.sDataMsg.batterySensor.voltageValue = data.readUint32(ind);
+                ind += 4;
+            }
+            /* Hall Effect sensor data recieved */
+            if(deviceData.sDataMsg.frameControl & Smsgs_dataFields.hallEffectSensor){
+                deviceData.sDataMsg.hallEffectSensor = {};
+                deviceData.sDataMsg.hallEffectSensor.isOpen = data.readUint8(ind);
+                ind += 1;
+                deviceData.sDataMsg.hallEffectSensor.isTampered = data.readUint8(ind);
+                ind += 1;
+            }
+            /* Fan Sensor data recieved */
+            if(deviceData.sDataMsg.frameControl & Smsgs_dataFields.fanSensor){
+                deviceData.sDataMsg.fanSensor = {};
+                deviceData.sDataMsg.fanSensor.fanSpeed = data.readInt8(ind);
+                ind += 1;
+            }
+            /* Door Lock data recieved */
+            if(deviceData.sDataMsg.frameControl & Smsgs_dataFields.doorLockSensor){
+                deviceData.sDataMsg.doorLockSensor = {};
+                deviceData.sDataMsg.doorLockSensor.isLocked = data.readUint8(ind);
+                ind += 1;
+            }
+
+
+            /* Check to see if device is known*/
+            if (deviceIdx !== -1) {
+                self.connectedDeviceList[deviceIdx].rxSensorData(deviceData);
+
+                if(PRINT_DEBUG) console.log(deviceData);
+
+                /* Update the web-client */
                 appClientInstance.emit('connDevInfoUpdate', self.connectedDeviceList[deviceIdx]);
             }
             else {
-                console.log("Developers can write handlers for new message types ")
+                if(PRINT_DEBUG) console.log('ERROR: Sensor data msg received from unknown device');
             }
-            return;
         }
-        else {
-            console.log("ERROR: rcvd sensor data message for non-existing device");
+
+        /* Sensor config msg received */
+        if(deviceData.msgContent & sDataMsgTypes.CONFIG_RSP_MSG){
+            deviceData.sConfigMsg = {};
+            deviceData.sConfigMsg.cmdId = data.readUint8(ind);
+            ind += 1;
+            deviceData.sConfigMsg.status = data.readUint16(ind);
+            ind += 2;
+            deviceData.sConfigMsg.frameControl = data.readUint16(ind);
+            ind += 2;
+            deviceData.sConfigMsg.reportingInterval = data.readUint32(ind);
+            ind += 4;
+            deviceData.sConfigMsg.pollingInterval = data.readUint32(ind);
+
+            /* Check to see if device is known*/
+            if (deviceIdx !== -1) {
+                self.connectedDeviceList[deviceIdx].rxConfigRspInd(deviceData);
+
+                if(PRINT_DEBUG) console.log(deviceData);
+
+                /* Update the web-client */
+                appClientInstance.emit('connDevInfoUpdate', self.connectedDeviceList[deviceIdx]);
+            }
+            else {
+                if(PRINT_DEBUG) console.log('ERROR: Sensor config response msg received from unknown device');
+            }
         }
     }
+
 
 	/*!
 	* @brief        This function is called to handle incoming message informing change
 	* 				in the state of the PAN-Coordiantor
 	*
-	* @param 		coordState - updated coordinator state
+	* @param 		data - Incoming msg data buffer
 	*
 	* @return       none
 	*/
-    function appC_processStateChangeUpdate(coordState) {
-        var state = JSON.parse(coordState);
+    function appC_processStateChangeUpdate(data) {
+        var nState = {state: data.readUint8(4)};
+        if(PRINT_DEBUG) console.log(nState);
         /* update state */
-        self.nwkInfo.updateNwkState(state);
+        self.nwkInfo.updateNwkState(nState);
         /* send info to web client */
         appClientInstance.emit('nwkUpdate');
     }
@@ -405,13 +731,27 @@ function Appclient() {
 	* @brief        This function is called to handle incoming confirm for
 	*				setjoinpermitreq
 	*
-	* @param 		permitJoinCnf - status of permit join req
+	* @param 		data - Incoming msg data buffer
 	*
 	* @return       none
 	*/
-    function appC_processSetJoinPermitCnf(permitJoinCnf) {
-        var cnf = JSON.parse(permitJoinCnf);
-        appClientInstance.emit('permitJoinCnf', { status: cnf.status });
+    function appC_processSetJoinPermitCnf(data) {
+        var cnfStatus = data.readUint32(PKT_HEADER_SIZE);
+        if (!cnfStatus && PRINT_DEBUG) console.log('JoinPermit Success!');
+        appClientInstance.emit('permitJoinCnf', { status: cnfStatus });
+    }
+
+
+    /*!
+	* @brief        This function is called to handle a remove device response
+	*
+	* @param 		data - Incoming msg data buffer
+	*
+	* @return       none
+	*/
+    function appC_processRemoveDeviceRsp(data){
+        /* Device has been removed, ask for updated array */
+        appC_getDevArrayFromAppServer();
     }
 
 	/************************************************************************
@@ -462,72 +802,108 @@ function Appclient() {
 	/*!
 	* @brief        Send Config req message to application server
 	*
-	* @param 		none
+	* @param 		data - Contains device address to send req to
 	*
 	* @return       none
 	*/
-    function appC_sendConfigReqToAppServer() {
-        // This implementation only intends to provide an example
-        // of how to send the message to an end node from the gateway
-        // app. Hard coded values below were used to test
-        // this implementation
-        var devDesc = {
-            panID: 0xACDC,
-            shortAddress: 0x0001,
-            extAddress: 0x00124B0008682c02
-        };
-        var configReq = {
-            cmdId: timac_pb.Smsgs_cmdIds.Smsgs_cmdIds_configReq,
-            frameControl: timac_pb.Smsgs_dataFields.Smsgs_dataFields_configSettings,
-            reportingInterval: 1000,
-            pollingInterval: 2000
-        };
+    function appC_sendConfigReqToAppServer(data) {
+        var dstAddr = parseInt(data.dstAddr.substring(2),16);
+        var deviceIdx = findDeviceIndexShortAddr(dstAddr);
+        if(deviceIdx != -1){
+            var len = 9;
+            var msg_buf = new ByteBuffer(PKT_HEADER_SIZE + len, ByteBuffer.LITTLE_ENDIAN);
+            msg_buf.writeShort(len, PKT_HEADER_LEN_FIELD);
+            msg_buf.writeUint8(APPSRV_SYS_ID_RPC, PKT_HEADER_SUBSYS_FIELD);
+            msg_buf.writeUint8(cmdIds.TX_DATA_REQ, PKT_HEADER_CMDID_FIELD);
+            var ind = PKT_HEADER_SIZE;
+            msg_buf.writeUint8(smgsCmdIds.CONFIG_REQ, ind);
+            ind+=1;
+            msg_buf.writeUint16(self.connectedDeviceList[deviceIdx].shortAddress, ind);
+            ind+=2;
+            msg_buf.writeUint16(parseInt(data.pollingInterval), ind);
+            ind+=2;
+            msg_buf.writeUint16(parseInt(data.reportingInterval), ind);
+            ind+=2;
+            msg_buf.writeUint16(parseInt(data.framecontrol), ind);
 
-        var msg_buf = timac_pb.appsrv_txDataReq.encode({
-            cmdId: timac_pb.appsrv_CmdId.APPSRV_TX_DATA_REQ,
-            msgId: timac_pb.Smsgs_cmdIds.Smsgs_cmdIds_configReq,
-            devDescriptor: devDesc,
-            configReqMsg: configReq
-        });
-        appC_sendMsgToAppServer(msg_buf);
+            if(PRINT_DEBUG) console.log("Sent config request");
+
+            appClient.write(msg_buf.buffer);
+        }
+
+    }
+
+    function appC_sendDevMovedIndToAppServer(data){
+        var dstAddr = parseInt(data.shortAddr,16);
+        var deviceIdx = findDeviceIndexShortAddr(dstAddr);
+        if(deviceIdx != -1){
+            var len = 2;
+            var ind = PKT_HEADER_SIZE;
+
+            var msg_buf = new ByteBuffer(PKT_HEADER_SIZE + len, ByteBuffer.LITTLE_ENDIAN);
+            msg_buf.writeShort(len, PKT_HEADER_LEN_FIELD);
+            msg_buf.writeUint8(APPSRV_SYS_ID_RPC, PKT_HEADER_SUBSYS_FIELD);
+            msg_buf.writeUint8(cmdIds.DEV_MOVED_IND, PKT_HEADER_CMDID_FIELD);
+
+            msg_buf.writeUint16(self.connectedDeviceList[deviceIdx].shortAddress, ind);
+
+            if(PRINT_DEBUG) console.log("Sent device moved ind");
+
+            appClient.write(msg_buf.buffer);
+        }
     }
 
 	/*!
 	* @brief        Send Config req message to application server
 	*
-	* @param 		none
+	* @param 		data - Contains device address to send req to
 	*
 	* @return       none
 	*/
     function appC_sendToggleLedMsgToAppServer(data) {
+        //Find index of ext address
+        var dstAddr = data.dstAddr.substring(2);
 
-        // remove 0x from the address and then conver the hex value to decimal
-        var dstAddr = parseInt(data.dstAddr.substring(2), 16).toString(10);
-        // find the device index in the list
         var deviceIdx = findDeviceIndexShortAddr(dstAddr);
-	if(deviceIdx == -1)
-		deviceIdx = findDeviceIndexExtAddr(dstAddr);
+        if (deviceIdx == -1){
+            deviceIdx = findDeviceIndexExtAddr(dstAddr);
+        }
+        if(deviceIdx != -1){
+            var len = 5;
+            var msg_buf = new ByteBuffer(PKT_HEADER_SIZE + len, ByteBuffer.LITTLE_ENDIAN);
+            msg_buf.writeShort(len, PKT_HEADER_LEN_FIELD);
+            msg_buf.writeUint8(APPSRV_SYS_ID_RPC, PKT_HEADER_SUBSYS_FIELD);
+            msg_buf.writeUint8(cmdIds.TX_DATA_REQ, PKT_HEADER_CMDID_FIELD);
+            var ind = PKT_HEADER_SIZE;
+            msg_buf.writeUint8(smgsCmdIds.TOGGLE_REQ, ind);
+            ind+=1;
+            msg_buf.writeUint16(self.connectedDeviceList[deviceIdx].shortAddress, ind);
 
-        if(deviceIdx != -1)
-        {
-            // found the device information   
-            var devDesc = {
-                panID: self.nwkInfo.panCoord.panId,
-                shortAddress: self.connectedDeviceList[deviceIdx].shortAddress,
-                extAddress: self.connectedDeviceList[deviceIdx].extAddress
-            };
-            var toggleReq = {
-                cmdId: timac_pb.Smsgs_cmdIds.Smsgs_cmdIds_toggleLedReq,
-            };
-        
-            var msg_buf = timac_pb.appsrv_txDataReq.encode({
-                cmdId: timac_pb.appsrv_CmdId.APPSRV_TX_DATA_REQ,
-                msgId: timac_pb.Smsgs_cmdIds.Smsgs_cmdIds_toggleLedReq,
-                devDescriptor: devDesc,
-                toggleLedReq: toggleReq
-            });
-            appC_sendMsgToAppServer(msg_buf);
-       }
+            appClient.write(msg_buf.buffer);
+            if(PRINT_DEBUG) console.log("Sent toggle request");
+        }
+    }
+
+    /*!
+	* @brief        Send remove device req message to application server
+	*
+	* @param 		data - Contains device address to send req to
+	*
+	* @return       none
+	*/
+    function appC_sendRemoveDeviceReqToAppServer(data){
+        /* Parse the string received from web-client */
+        var shortAddr = parseInt(data.substring(2),16);
+
+        var len = 2;
+        var msg_buf = new ByteBuffer(PKT_HEADER_SIZE + len, ByteBuffer.LITTLE_ENDIAN);
+        msg_buf.writeShort(len, PKT_HEADER_LEN_FIELD);
+        msg_buf.writeUint8(APPSRV_SYS_ID_RPC, PKT_HEADER_SUBSYS_FIELD);
+        msg_buf.writeUint8(cmdIds.RMV_DEVICE_REQ, PKT_HEADER_CMDID_FIELD);
+        msg_buf.writeUint16(shortAddr, PKT_HEADER_SIZE);
+
+        appClient.write(msg_buf.buffer);
+        if(PRINT_DEBUG) console.log("Sent remove device request");
     }
 
 	/*!
@@ -538,11 +914,13 @@ function Appclient() {
 	* @return       none
 	*/
     function appC_getNwkInfoFromAppServer() {
-        /* create the message */
-        var msg_buf = timac_pb.appsrv_getNwkInfoReq.encode({
-            cmdId: timac_pb.appsrv_CmdId.APPSRV_GET_NWK_INFO_REQ
-        });
-        appC_sendMsgToAppServer(msg_buf);
+        var len = 0;
+        var msg_buf = new ByteBuffer(PKT_HEADER_SIZE + len, ByteBuffer.LITTLE_ENDIAN);
+        msg_buf.writeShort(len, PKT_HEADER_LEN_FIELD);
+        msg_buf.writeUint8(APPSRV_SYS_ID_RPC, PKT_HEADER_SUBSYS_FIELD);
+        msg_buf.writeUint8(cmdIds.GET_NWK_INFO_REQ, PKT_HEADER_CMDID_FIELD);
+        appClient.write(msg_buf.buffer);
+        if(PRINT_DEBUG) console.log("Get network info req sent");
     }
 
 	/*!
@@ -553,21 +931,23 @@ function Appclient() {
 	* @return       none
 	*/
     function appC_getDevArrayFromAppServer() {
-        /* create the message */
-        var msg_buf = timac_pb.appsrv_getNwkInfoReq.encode({
-            cmdId: timac_pb.appsrv_CmdId.APPSRV_GET_DEVICE_ARRAY_REQ
-        });
-        appC_sendMsgToAppServer(msg_buf);
+        var len = 0;
+        var msg_buf = new ByteBuffer(PKT_HEADER_SIZE + len, ByteBuffer.LITTLE_ENDIAN);
+        msg_buf.writeShort(len, PKT_HEADER_LEN_FIELD);
+        msg_buf.writeUint8(APPSRV_SYS_ID_RPC, PKT_HEADER_SUBSYS_FIELD);
+        msg_buf.writeUint8(cmdIds.GET_DEVICE_ARRAY_REQ, PKT_HEADER_CMDID_FIELD);
+        appClient.write(msg_buf.buffer);
+        if(PRINT_DEBUG) console.log("Sent get device array req");
     }
 
 	/*!
 	* @brief        Send join permit Req to application server
 	*
-	* @param 		data - containinfo about action required
+	* @param 		data - contains info about action required
 	*					"open" - open network for device joins
 	*				    "close"- close netwwork for device joins
 	*
-	* @return
+	* @return       none
 	*/
     function appC_setJoinPermitAtAppServer(data) {
         var duration = 0x0;
@@ -579,32 +959,17 @@ function Appclient() {
             /* Set always close value */
             duration = 0x0;
         }
-        /* create the message */
-        var msg_buf = timac_pb.appsrv_setJoinPermitReq.encode({
-            cmdId: timac_pb.appsrv_CmdId.APPSRV_SET_JOIN_PERMIT_REQ,
-            duration: duration
-        });
-        appC_sendMsgToAppServer(msg_buf);
+        /* Create the message */
+        var len = 4;
+        var msg_buf = new ByteBuffer(PKT_HEADER_SIZE + len, ByteBuffer.LITTLE_ENDIAN);
+        msg_buf.writeShort(len, PKT_HEADER_LEN_FIELD);
+        msg_buf.writeUint8(APPSRV_SYS_ID_RPC, PKT_HEADER_SUBSYS_FIELD);
+        msg_buf.writeUint8(cmdIds.SET_JOIN_PERMIT_REQ, PKT_HEADER_CMDID_FIELD);
+        msg_buf.writeUint32(duration,PKT_HEADER_SIZE);
+        /* Send the message */
+        appClient.write(msg_buf.buffer);
+        if(PRINT_DEBUG) console.log("Sending join permit");
     }
-
-	/*!
-	* @brief        Send message to application server
-	*
-	* @param 		msg_buf - element containing data to be sent
-	*					to the application server
-	*
-	* @return       none
-	*/
-    function appC_sendMsgToAppServer(msg_buf) {
-        var ByteBuffer = require("bytebuffer");
-        var pkt_buf = new ByteBuffer(PKT_HEADER_SIZE + msg_buf.length, ByteBuffer.LITTLE_ENDIAN)
-            .writeShort(msg_buf.length, PKT_HEADER_LEN_FIELD)
-            .writeUint8(timac_pb.timacAppSrvSysId.RPC_SYS_PB_TIMAC_APPSRV, PKT_HEADER_SUBSYS_FIELD)
-            .writeUint8(msg_buf[1], PKT_HEADER_CMDID_FIELD)
-            .append(msg_buf, "hex", PKT_HEADER_SIZE);
-        /* Send the message to server */
-        appClient.write(pkt_buf.buffer);
-    };
 
 	/*!
 	* @brief        Allows to request for network
@@ -628,8 +993,8 @@ function Appclient() {
 	* @return       connected device list
 	*/
     Appclient.prototype.appC_getDeviceArray = function () {
-	/* request the device information from the App Server */
-        appC_getDevArrayFromAppServer();
+        /* send the device information */
+        appClientInstance.emit('getdevArrayRsp');
     };
 
 	/*!
@@ -637,7 +1002,7 @@ function Appclient() {
 	*
 	* @param 		none
 	*
-	* @return       data - containinfo about action required
+	* @return       data - contains info about action required
 	*					"open" - open network for device joins
 	*				    "close"- close netwwork for device joins
 	*/
@@ -656,6 +1021,17 @@ function Appclient() {
         appC_sendToggleLedMsgToAppServer(data);
     }
 
+    /*!
+	* @brief        Allows a device to be removed from device lists
+	*
+	* @param 		none
+	*
+	* @return       none
+	*/
+    Appclient.prototype.appC_removeDeviceReq = function (data) {
+        appC_sendRemoveDeviceReqToAppServer(data);
+    }
+
 
 	/*!
 	* @brief        Allows send config command to a network device
@@ -667,10 +1043,20 @@ function Appclient() {
     Appclient.prototype.appC_sendConfig = function (data) {
         appC_sendConfigReqToAppServer(data);
     }
+
+    /*!
+	* @brief        Allows send device moved ind msg
+	*
+	* @param 		none
+	*
+	* @return       none
+	*/
+    Appclient.prototype.appC_sendDevMovedInd = function (data) {
+        appC_sendDevMovedIndToAppServer(data);
+    }
+
 }
 
 Appclient.prototype.__proto__ = events.EventEmitter.prototype;
 
 module.exports = Appclient;
-
-

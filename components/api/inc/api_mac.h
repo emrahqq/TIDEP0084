@@ -1,8 +1,8 @@
 /******************************************************************************
 
  @file api_mac.h
-
- @brief TIMAC 2.0 API
+i
+ @brief TI-15.4 Stack API
 
  Group: WCS LPC
  $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
  *****************************************************************************/
 #ifndef API_MAC_H
 #define API_MAC_H
@@ -54,7 +54,7 @@
 #include <stdint.h>
 
 /*!
- @mainpage TIMAC 2.0 API
+ @mainpage TI-15.4 Stack API
 
  The following is the application programming interface (API) for the Texas
  Instruments 802.15.4 MAC software.  This API provides an interface to the
@@ -264,10 +264,10 @@ extern "C"
 /*! PHY descriptor table entry */
 #define APIMAC_PHY_DESCRIPTOR 0x01
 
-/*! Range Extender Mode */
+/*! Range Extender Mode disable high gain */
 #define APIMAC_NO_EXTENDER      0x00
+/*! Range Extender Mode enable high gain */
 #define APIMAC_HIGH_GAIN_MODE   0x01
-#define APIMAC_LOW_GAIN_MODE    0x02
 
 /*!
  Special address value - Short address value indicating extended address

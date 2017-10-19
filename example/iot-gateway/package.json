@@ -1,6 +1,6 @@
 {
   "name": "timacgatewayapp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": "true",
   "dependencies": {
     "bytebuffer": "*",
@@ -9,10 +9,12 @@
     "fs": "0.0.2",
     "http": "0.0.0",
     "net": "*",
-    "protocol-buffers": "*",
     "smartobject": "^0.1.2",
     "socket.io": "^1.4.5",
-    "util": "*"
+    "util": "*",
+    "aws-iot-device-sdk": "*",
+    "ibmiotf": "*",
+    "long": "*"
   },
   "scripts": {
     "start": "node iot-gateway.js"

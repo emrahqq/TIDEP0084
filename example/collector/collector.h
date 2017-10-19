@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
  *****************************************************************************/
 #ifndef COLLECTOR_H
 #define COLLECTOR_H
@@ -79,7 +79,9 @@ typedef enum
     /*! Device Not Found */
     Collector_status_deviceNotFound = 1,
     /*! Collector isn't in the correct state to send a message */
-    Collector_status_invalid_state = 2
+    Collector_status_invalid_state = 2,
+    /*! Collector isn't in the correct state to send a message */
+    Collector_status_invalid_file = 3
 } Collector_status_t;
 
 /******************************************************************************
@@ -189,6 +191,16 @@ extern Collector_status_t Collector_sendConfigRequest(ApiMac_sAddr_t *pDstAddr,
                 uint32_t pollingInterval);
 
 /*!
+ * @brief Find if device exists.
+ *
+ * @param pAddr - Address of device
+ *
+ * @return Collector_status_success
+ *         or Collector_status_deviceNotFound
+ */
+extern Collector_status_t Collector_findDevice(ApiMac_sAddr_t *pAddr);
+
+/*!
  * @brief Update the collector statistics
  */
 extern void Collector_updateStats( void );
@@ -203,6 +215,47 @@ extern void Collector_updateStats( void );
  */
 extern Collector_status_t Collector_sendToggleLedRequest(
                 ApiMac_sAddr_t *pDstAddr);
+
+/*!
+ * @brief Adds a new file to the OAd file list.
+ *
+ * @param new_oad_file - path to OAD file
+ *
+ * @return OAD file ID
+ */
+extern uint32_t Collector_updateFwList(char *new_oad_file);
+
+/*!
+ * @brief Send OAD version request message.
+ *
+ * @param pDstAddr - destination address of the device to send the message
+ *
+ * @return Collector_status_success, Collector_status_invalid_state
+ *         or Collector_status_deviceNotFound
+ */
+extern Collector_status_t Collector_sendFwVersionRequest(
+                ApiMac_sAddr_t *pDstAddr);
+
+/*!
+ * @brief .Check a device exists
+ *
+ * @param pAddr - destination address of the device
+ *
+ * @return Collector_status_success or Collector_status_deviceNotFound
+ */
+extern Collector_status_t Collector_findDevice(
+                ApiMac_sAddr_t *pAddr);
+
+/*!
+ * @brief Send OAD update request message.
+ *
+ * @param pDstAddr    - destination address of the device to send the message
+ * @param oad_file_id - OAD file ID
+ *
+ * @return Collector_status_success, Collector_status_invalid_state
+ *         or Collector_status_deviceNotFound
+ */
+extern Collector_status_t Collector_startFwUpdate(ApiMac_sAddr_t *pDstAddr, uint32_t oad_file_id);
 
 #ifdef __cplusplus
 }

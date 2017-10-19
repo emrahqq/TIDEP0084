@@ -40,8 +40,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
  *****************************************************************************/
 
 #if (defined(_MSC_VER) || defined(__linux__))
@@ -72,6 +72,8 @@
 
 #include "util.h"
 
+#include "common/util/board_lcd.h"
+
 #else /* (HLOS) */
 #include <xdc/std.h>
 #include <xdc/runtime/Error.h>
@@ -91,7 +93,6 @@
 #include "timer.h"
 #include "util.h"
 #include "board_key.h"
-#include "board_lcd.h"
 #include "board_led.h"
 
 #include "macconfig.h"
@@ -166,6 +167,7 @@
 #define JOIN_TIMEOUT_VALUE       20
 /* timeout value for config request delay */
 #define CONFIG_TIMEOUT_VALUE 1000
+
 /*
  The increment value needed to save a frame counter. Example, setting this
  constant to 100, means that the frame counter will be saved when the new
@@ -180,6 +182,30 @@
 
 /*! NV driver item ID for reset reason */
 #define NVID_RESET {NVINTF_SYSID_APP, CSF_NV_RESET_REASON_ID, 0}
+
+#ifdef IS_HLOS
+
+#define board_led_type_LED1 0
+#define board_led_type_LED2 0
+#define board_led_state_ON  0
+#define Board_Led_toggle(led)(void)led;
+#define Board_Led_control(led, action) \
+(void)led; \
+(void)action;
+
+#include <termios.h>
+
+#define KEY_PERMIT_JOIN 'o'
+#define KEY_SELECT_DEVICE 's'
+#define KEY_FW_VER_REQ 'v'
+#define KEY_FW_UPDATE_REQ 'u'
+#define KEY_GET_OAD_FILE 'f'
+#define KEY_TOGGLE_REQ 't'
+#define KEY_LIST_DEVICES 'l'
+#define KEY_DISASSOCIATE_DEVICE 'd'
+
+#define DEFUALT_OAD_FILE "../../firmware/oad/sensor_oad_cc13x0lp_app.bin"
+#endif //IS_HLOS
 
 /******************************************************************************
  External variables
@@ -257,6 +283,20 @@ static uint32_t lastSavedCoordinatorFrameCounter = 0;
 static const NVINTF_itemID_t nvResetId = NVID_RESET;
 #endif
 
+#ifndef IS_HEADLESS
+enum {
+    DisplayLine_product = 0,
+    DisplayLine_nwk,
+    DisplayLine_sensorStart,
+    DisplayLine_sensorEnd = 6,
+    DisplayLine_info,
+    DisplayLine_cmd,
+} DisplayLine;
+#else
+#endif //IS_HEADLESS
+
+static uint32_t selected_oad_file_id = 0;
+
 /******************************************************************************
  Global variables
  *****************************************************************************/
@@ -280,6 +320,11 @@ static void processPCTrickleTimeoutCallback_WRAPPER(intptr_t thandle, intptr_t c
 static void processJoinTimeoutCallback_WRAPPER(intptr_t thandle, intptr_t cookie);
 static void processConfigTimeoutCallback_WRAPPER(intptr_t thandle, intptr_t cookie);
 
+#ifndef IS_HEADLESS
+char* getConsoleCmd(void);
+void initConsoleCmd(void);
+#endif //!IS_HEADLESS
+
 #endif
 
 static void processTackingTimeoutCallback(UArg a0);
@@ -298,6 +343,8 @@ static int findUnusedBlackListIndex(void);
 static uint16_t getNumBlackListEntries(void);
 static void saveNumBlackListEntries(uint16_t numEntries);
 void removeBlackListItem(ApiMac_sAddr_t *pAddr);
+static bool removeDevice(ApiMac_sAddr_t addr);
+
 #if defined(TEST_REMOVE_DEVICE)
 static void removeTheFirstDevice(void);
 #endif
@@ -317,7 +364,29 @@ static uint16_t getTheFirstDevice(void);
  */
 void Csf_init(void *sem)
 {
+    char default_oad_file[256] = DEFUALT_OAD_FILE;
+
+    /* Set defualt FW image */
+    selected_oad_file_id = Collector_updateFwList(default_oad_file);
+
+    /* Initialize the LCD */
+    Board_LCD_open();
+
+#ifndef IS_HEADLESS
+    Board_Lcd_printf(DisplayLine_product, "TI Collector");
+
+#if !defined(AUTO_START)
+    Board_Lcd_printf(DisplayLine_nwk, "Nwk: Starting");
+#endif /* AUTO_START */
+
+#endif //!IS_HEADLESS
+
 #if IS_HLOS
+
+#ifndef IS_HEADLESS
+    initConsoleCmd();
+#endif //!HEADLESS
+
     /* Save off the semaphore */
     collectorSem = (intptr_t)sem;
 
@@ -343,10 +412,6 @@ void Csf_init(void *sem)
     /* Save off the semaphore */
     collectorSem = sem;
 
-    /* Initialize PA/LNA if enabled */
-    ApiMac_mlmeSetReqUint8(ApiMac_attribute_rangeExtender,
-                           (uint8_t)CONFIG_RANGE_EXT_MODE);
-
     /* Initialize keys */
     if(Board_Key_initialize(processKeyChangeCallback) == KEY_RIGHT)
     {
@@ -354,13 +419,14 @@ void Csf_init(void *sem)
         Csf_clearAllNVItems();
     }
 
+#ifndef IS_HEADLESS
     /* Initialize the LCD */
     Board_LCD_open();
 
-    LCD_WRITE_STRING("TI Collector", 1);
 #if !defined(AUTO_START)
-    LCD_WRITE_STRING("Waiting...", 2);
+    Board_Lcd_printf(DisplayLine_nwk, "Nwk: Starting");
 #endif /* AUTO_START */
+#endif //!IS_HEADLESS
 
     Board_Led_initialize();
 
@@ -389,7 +455,9 @@ void Csf_init(void *sem)
         /* Did we reset because of assert? */
         if(resetReseason > 0)
         {
-            LCD_WRITE_STRING("Restarting...", 2);
+#if IS_HEADLESS
+            Board_Lcd_printf(DisplayLine_nwk, "Nwk: Restarting");
+#endif //!IS_HEADLESS
 
             /* Tell the collector to restart */
             Csf_events |= CSF_KEY_EVENT;
@@ -408,53 +476,19 @@ void Csf_init(void *sem)
  */
 void Csf_processEvents(void)
 {
-#if !IS_HLOS
-    /* Did a key press occur? */
-    if(Csf_events & CSF_KEY_EVENT)
+
+#if (!defined(IS_HEADLESS) && defined(IS_HLOS))
+
+    char *cmdBuff;
+    static uint16_t selected_device = 0;
+
+    cmdBuff = getConsoleCmd();
+
+    if(cmdBuff)
     {
-        /* LaunchPad only supports KEY_LEFT and KEY_RIGHT */
+        Csf_keys = cmdBuff[0];
 
-        if(Csf_keys & KEY_LEFT)
-        {
-
-#if !defined(AUTO_START)
-            /* Process the Left Key */
-            if(started == false)
-            {
-                LCD_WRITE_STRING("Starting...", 2);
-
-                /* Tell the collector to start */
-                Util_setEvent(&Collector_events, COLLECTOR_START_EVT);
-            }
-            else
-#endif /* AUTO_START */
-            {
-#if defined(TEST_REMOVE_DEVICE)
-                /*
-                 Remove the first device found in the device list.
-                 Nobody would do something like this, it's just
-                 and example on the use of the device list, remove
-                 function and the black list.
-                 */
-                removeTheFirstDevice();
-#else
-                /*
-                 Send a Toggle LED request to the first device
-                 in the device list
-                 */
-                ApiMac_sAddr_t firstDev;
-
-                firstDev.addr.shortAddr = getTheFirstDevice();
-                if(firstDev.addr.shortAddr != CSF_INVALID_SHORT_ADDR)
-                {
-                    firstDev.addrMode = ApiMac_addrType_short;
-                    Collector_sendToggleLedRequest(&firstDev);
-                }
-#endif
-            }
-        }
-
-        if(Csf_keys & KEY_RIGHT)
+        if(Csf_keys == KEY_PERMIT_JOIN)
         {
             uint32_t duration;
             /* Toggle the permit joining */
@@ -462,32 +496,202 @@ void Csf_processEvents(void)
             {
                 permitJoining = false;
                 duration = 0;
-                LCD_WRITE_STRING("PermitJoin-OFF", 3);
+                Board_Lcd_printf(DisplayLine_info, "Info: PermitJoin-OFF");
             }
             else
             {
                 permitJoining = true;
                 duration = 0xFFFFFFFF;
-                LCD_WRITE_STRING("PermitJoin-ON ", 3);
+                Board_Lcd_printf(DisplayLine_info, "Info: PermitJoin-ON ");
             }
 
             /* Set permit joining */
             Cllc_setJoinPermit(duration);
         }
 
+        if(Csf_keys == KEY_SELECT_DEVICE)
+        {
+            if(sscanf(cmdBuff, "s0x%hx", &selected_device) < 1)
+            {
+                sscanf(cmdBuff, "s%hd", &selected_device);
+            }
+
+            Board_Lcd_printf(DisplayLine_info, "Info: Selected device 0x%04x", selected_device);
+        }
+
+        if(Csf_keys == KEY_FW_VER_REQ)
+        {
+            ApiMac_sAddr_t sAddr;
+
+            Board_Lcd_printf(DisplayLine_info, "Info: Sending 0x%04x FW version req", selected_device);
+
+            sAddr.addr.shortAddr = selected_device;
+            sAddr.addrMode = ApiMac_addrType_short;
+            Collector_sendFwVersionRequest(&sAddr);
+        }
+
+        if(Csf_keys == KEY_FW_UPDATE_REQ)
+        {
+            ApiMac_sAddr_t sAddr;
+            Collector_status_t status;
+
+            Board_Lcd_printf(DisplayLine_info, "Info: Sending 0x%04x FW Update Req", selected_device);
+
+            sAddr.addr.shortAddr = selected_device;
+            sAddr.addrMode = ApiMac_addrType_short;
+            status = Collector_startFwUpdate(&sAddr, selected_oad_file_id);
+
+            if(status == Collector_status_invalid_file)
+            {
+                Board_Lcd_printf(DisplayLine_info, "Info: Update req file not found ID:%d", selected_oad_file_id);
+            }
+            else if(status != Collector_status_success)
+            {
+                Board_Lcd_printf(DisplayLine_info, "Info: Update req failed");
+            }
+        }
+
+        if(Csf_keys == KEY_GET_OAD_FILE)
+        {
+            static char new_oad_file[256] = DEFUALT_OAD_FILE;
+
+            if(sscanf(cmdBuff, "f %s", new_oad_file))
+            {
+                selected_oad_file_id = Collector_updateFwList(new_oad_file);
+            }
+
+            Board_Lcd_printf(DisplayLine_info, "Info: OAD file %s", new_oad_file);
+        }
+
+        if(Csf_keys == KEY_TOGGLE_REQ)
+        {
+            ApiMac_sAddr_t sAddr;
+            Collector_status_t status;
+
+            Board_Lcd_printf(DisplayLine_info, "Info: Sending 0x%04x LED toggle req", selected_device);
+
+            sAddr.addr.shortAddr = selected_device;
+            sAddr.addrMode = ApiMac_addrType_short;
+            status = Csf_sendToggleLedRequest(&sAddr);
+
+            if(status == Collector_status_deviceNotFound)
+            {
+                Board_Lcd_printf(DisplayLine_info, "Info: Toggle Req device 0x%04x not found", selected_device);
+            }
+            else if(status != Collector_status_success)
+            {
+                Board_Lcd_printf(DisplayLine_info, "Info: Update Req failed");
+            }
+        }
+
+        if(Csf_keys == KEY_LIST_DEVICES)
+        {
+            ApiMac_sAddr_t sAddr;
+            uint32_t devIdx;
+
+            for(devIdx = 1; devIdx < CONFIG_MAX_DEVICES; devIdx++)
+            {
+                sAddr.addr.shortAddr = devIdx;
+                sAddr.addrMode = ApiMac_addrType_short;
+
+                if(Collector_findDevice(&sAddr) == Collector_status_success)
+                {
+                    Board_Lcd_printf(DisplayLine_info, "Info: Device 0x%04x found", devIdx);
+                }
+            }
+        }
+
+        if(Csf_keys == KEY_DISASSOCIATE_DEVICE)
+        {
+            ApiMac_sAddr_t sAddr;
+
+            Board_Lcd_printf(DisplayLine_info, "Info: Sending 0x%04x disassociation req", selected_device);
+
+            sAddr.addr.shortAddr = selected_device;
+            sAddr.addrMode = ApiMac_addrType_short;
+
+            if(!removeDevice(sAddr))
+            {
+                Board_Lcd_printf(DisplayLine_info, "Info: disassociation req device 0x%04x not found", selected_device);
+            }
+        }
+
         /* Clear the key press indication */
         Csf_keys = 0;
-
-        /* Clear the event */
-        Util_clearEvent(&Csf_events, CSF_KEY_EVENT);
     }
+
+    /* Clear the event */
+    Util_clearEvent(&Csf_events, CSF_KEY_EVENT);
+
+#endif /* (!defined(IS_HEADLESS) && defined(IS_HLOS)) */
 
 #if defined(MT_CSF)
     MTCSF_displayStatistics();
 #endif
-
-#endif /* !IS_HLOS */
 }
+
+#if (!defined(IS_HEADLESS) && defined(IS_HLOS))
+void initConsoleCmd(void)
+{
+    struct termios term_attr;
+
+    /* set the terminal to raw mode */
+    tcgetattr(fileno(stdin), &term_attr);
+    term_attr.c_lflag &= ~(ECHO|ICANON);
+    term_attr.c_cc[VTIME] = 0;
+    term_attr.c_cc[VMIN] = 0;
+    tcsetattr(fileno(stdin), TCSANOW, &term_attr);
+
+}
+
+char* getConsoleCmd(void)
+{
+    static bool cmdComplete = false;
+    static char cmd[256] = {0};
+    static int ch;
+    static uint8_t cmdIdx = 0;
+
+    if(cmdComplete)
+    {
+        memset(cmd, 0, 256);
+        cmdIdx = 0;
+        cmdComplete = false;
+    }
+
+    /* read a character from the stdin stream without blocking */
+    /*   returns EOF (-1) if no character is available */
+    ch = getchar();
+
+    if(ch != -1)
+    {
+         /* Discard non-ascii characters except new lines */
+        if(ch == 0xa || (ch >= 0x20 && ch < 0x7F))
+        {
+            cmd[cmdIdx] = ch;
+        }
+
+        Board_Lcd_printf(DisplayLine_cmd, "cmd: %s", cmd)
+        //cmdIdx will wrap arounf for the 256Byte buffer
+        if(cmd[cmdIdx] == 0xa)
+        {
+            cmdComplete = true;
+        }
+        else
+        {
+            cmdIdx++;
+        }
+    }
+
+    if(cmdComplete)
+    {
+        return cmd;
+    }
+    else
+    {
+        return 0;
+    }
+}
+#endif //(!defined(HEADLESS) && defined(IS_HLOS))
 
 /*!
  The application calls this function to retrieve the stored
@@ -541,39 +745,40 @@ void Csf_networkUpdate(bool restored, Llc_netInfo_t *pNetworkInfo)
 
 
 #if IS_HLOS
-        /* send info to appClient */
+        /* Send info to appClient */
         if(pNetworkInfo != NULL)
         {
              appsrv_networkUpdate(restored, pNetworkInfo);
         }
-#else
+#endif /* IS_HLOS */
+
         started = true;
 
+#ifndef IS_HEADLESS
         if(restored == false)
         {
-            LCD_WRITE_STRING("Started", 2);
+            Board_Lcd_printf(DisplayLine_nwk, "Nwk: Started");
         }
         else
         {
-            LCD_WRITE_STRING("Restarted", 2);
+            Board_Lcd_printf(DisplayLine_nwk, "Nwk: Started");
         }
 
         if(pNetworkInfo->fh == false)
         {
-            LCD_WRITE_STRING_VALUE("Channel: ", pNetworkInfo->channel, 10, 3);
+            Board_Lcd_printf(DisplayLine_info, "Info: Channel %d", pNetworkInfo->channel);
         }
         else
         {
-            LCD_WRITE_STRING("Freq. Hopping", 3);
+            Board_Lcd_printf(DisplayLine_info, "Info: Freq. Hopping");
         }
+#endif //!IS_HEADLESS
 
         Board_Led_control(board_led_type_LED1, board_led_state_ON);
 
 #if defined(MT_CSF)
         MTCSF_networkUpdateIndCB();
 #endif
-
-#endif /* IS_HLOS */
     }
 }
 
@@ -607,9 +812,11 @@ ApiMac_assocStatus_t Csf_deviceUpdate(ApiMac_deviceDescriptor_t *pDevInfo,
         LOG_printf(LOG_APPSRV_MSG_CONTENT,
                    "Denied: 0x%04x\n",
                    pDevInfo->shortAddress);
-#else
-        LCD_WRITE_STRING_VALUE("Denied: 0x", pDevInfo->shortAddress, 16, 4);
 #endif /* IS_HLOS */
+
+#ifndef IS_HEADLESS
+        Board_Lcd_printf(DisplayLine_info, "Info: Denied 0x%04x", pDevInfo->shortAddress);
+#endif //IS_HEADLESS
     }
     else
     {
@@ -627,28 +834,36 @@ ApiMac_assocStatus_t Csf_deviceUpdate(ApiMac_deviceDescriptor_t *pDevInfo,
 
 #if IS_HLOS
             LOG_printf(LOG_ERROR,"Failed: 0x%04x\n", pDevInfo->shortAddress);
-#else
-            LCD_WRITE_STRING_VALUE("Failed: 0x", pDevInfo->shortAddress, 16, 4);
 #endif /* IS_HLOS */
-#else
-	    status = ApiMac_assocStatus_success;
+
+#ifndef IS_HEADLESS
+            Board_Lcd_printf(DisplayLine_info, "Info: Join Failed 0x%04x", pDevInfo->shortAddress);
+#endif //!IS_HEADLESS
+
+#else /* NV_RESTORE */
+        status = ApiMac_assocStatus_success;
 #if IS_HLOS
-	    LOG_printf(LOG_ERROR,"Joined: 0x%04x\n", pDevInfo->shortAddress);
-#else
-            LCD_WRITE_STRING_VALUE("Joined: 0x", pDevInfo->shortAddress, 16, 4);
-#endif
-#endif /* NV_RESTORE */	    
+        LOG_printf(LOG_ERROR,"Joined: 0x%04x\n", pDevInfo->shortAddress);
+#endif /* IS_HLOS */
+
+#ifndef IS_HEADLESS
+        Board_Lcd_printf(DisplayLine_info, "Info: Joined 0x%04x", pDevInfo->shortAddress);
+#endif //!IS_HEADLESS
+
+#endif /* NV_RESTORE */
         }
         else
         {
 #if IS_HLOS
-         /* send update to the appClient */
+         /* Send update to the appClient */
             LOG_printf(LOG_APPSRV_MSG_CONTENT,
                        "sending device update info to appsrv \n");
             appsrv_deviceUpdate(&dev);
-#else
-            LCD_WRITE_STRING_VALUE("Joined: 0x", pDevInfo->shortAddress, 16, 4);
 #endif /* IS_HLOS */
+
+#ifndef IS_HEADLESS
+            Board_Lcd_printf(DisplayLine_info, "Info: Joined 0x%04x", pDevInfo->shortAddress);
+#endif //!IS_HEADLESS
         }
     }
 
@@ -688,16 +903,16 @@ bool timeout)
                 pDevInfo->extAddress[5],
                 pDevInfo->extAddress[6],
                 pDevInfo->extAddress[7]);
-#else
+#endif /* IS_HLOS */
 
-    LCD_WRITE_STRING_VALUE("!Responding: 0x", pDevInfo->shortAddress,
-                           16,
-                           5);
+#ifndef IS_HEADLESS
+    Board_Lcd_printf(DisplayLine_info, "Info: No response 0x%04x", pDevInfo->shortAddress);
+#endif //IS_HEADLESS
 
 #if defined(MT_CSF)
     MTCSF_deviceNotActiveIndCB(pDevInfo, timeout);
 #endif
-#endif /* IS_HLOS */
+
 }
 
 /*!
@@ -715,13 +930,16 @@ void Csf_deviceConfigUpdate(ApiMac_sAddr_t *pSrcAddr, int8_t rssi,
     LOG_printf(LOG_APPSRV_MSG_CONTENT,
                "ConfigRsp: 0x%04x\n",
                pSrcAddr->addr.shortAddr);
-#else
-    LCD_WRITE_STRING_VALUE("ConfigRsp: 0x", pSrcAddr->addr.shortAddr, 16, 5);
+#endif /* IS_HLOS */
+
+#ifndef IS_HEADLESS
+    Board_Lcd_printf(DisplayLine_info, "Info: ConfigRsp 0x%04x", pSrcAddr->addr.shortAddr);
+#endif //IS_HEADLESS
 
 #if defined(MT_CSF)
     MTCSF_configResponseIndCB(pSrcAddr, rssi, pMsg);
 #endif
-#endif /* IS_HLOS */
+
 }
 
 /*!
@@ -733,6 +951,21 @@ void Csf_deviceConfigUpdate(ApiMac_sAddr_t *pSrcAddr, int8_t rssi,
 void Csf_deviceSensorDataUpdate(ApiMac_sAddr_t *pSrcAddr, int8_t rssi,
                                 Smsgs_sensorMsg_t *pMsg)
 {
+#ifndef IS_HEADLESS
+    uint16_t sensorData = pMsg->tempSensor.ambienceTemp;
+
+    if((DisplayLine_sensorStart + (pSrcAddr->addr.shortAddr - 1)) < DisplayLine_sensorEnd)
+    {
+        Board_Lcd_printf(DisplayLine_sensorStart + (pSrcAddr->addr.shortAddr - 1), "Sensor 0x%04x: Temp %d, RSSI %d",
+                        pSrcAddr->addr.shortAddr, sensorData, rssi);
+    }
+    else
+    {
+        Board_Lcd_printf(DisplayLine_sensorEnd, "Sensor 0x%04x: Temp %d, RSSI %d",
+                        pSrcAddr->addr.shortAddr, sensorData, rssi);
+    }
+#endif //!IS_HEADLESS
+
 #if IS_HLOS
     /* send data to the appClient */
     LOG_printf(LOG_APPSRV_MSG_CONTENT,
@@ -740,15 +973,96 @@ void Csf_deviceSensorDataUpdate(ApiMac_sAddr_t *pSrcAddr, int8_t rssi,
                pSrcAddr->addr.shortAddr);
 
     appsrv_deviceSensorDataUpdate(pSrcAddr, rssi, pMsg);
-#else
-    Board_Led_toggle(board_led_type_LED2);
+#endif /* IS_HLOS */
 
-    LCD_WRITE_STRING_VALUE("Sensor 0x", pSrcAddr->addr.shortAddr, 16, 6);
+    Board_Led_toggle(board_led_type_LED2);
 
 #if defined(MT_CSF)
     MTCSF_sensorUpdateIndCB(pSrcAddr, rssi, pMsg);
 #endif
-#endif /* IS_HLOS */
+}
+
+/*!
+ The application calls this function to indicate that a device
+ has disassociated.
+
+ Public function defined in csf.h
+ */
+void Csf_deviceDisassocUpdate( ApiMac_sAddr_t *pSrcAddr )
+{
+#ifndef IS_HEADLESS
+    if(pSrcAddr->addrMode == ApiMac_addrType_extended)
+    {
+        Board_Lcd_printf(DisplayLine_info, "Info: Disassociate ind from %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+                            pSrcAddr->addr.extAddr[7], pSrcAddr->addr.extAddr[6],
+                            pSrcAddr->addr.extAddr[5], pSrcAddr->addr.extAddr[4],
+                            pSrcAddr->addr.extAddr[3], pSrcAddr->addr.extAddr[2],
+                            pSrcAddr->addr.extAddr[1], pSrcAddr->addr.extAddr[0]);
+    }
+    else //assume short addr
+    {
+        Board_Lcd_printf(DisplayLine_info, "Info: Disassociate ind from 0x%04x", pSrcAddr->addr.shortAddr);
+    }
+#endif //!IS_HEADLESS
+}
+
+/*!
+ The application calls this function to indicate that a device
+ has reported its FW version.
+
+ Public function defined in csf.h
+ */
+void Csf_deviceSensorFwVerUpdate( uint16_t srcAddr, char *fwVerStr)
+{
+    Board_Led_toggle(board_led_type_LED2);
+
+#ifndef IS_HEADLESS
+    if((DisplayLine_sensorStart + (srcAddr - 1)) < DisplayLine_sensorEnd)
+    {
+        Board_Lcd_printf(DisplayLine_sensorStart + (srcAddr - 1), "Sensor 0x%04x: FW Ver %s",
+                        srcAddr, fwVerStr);
+    }
+    else
+    {
+        Board_Lcd_printf(DisplayLine_sensorEnd, "Sensor 0x%04x: FW Ver %s",
+                        srcAddr, fwVerStr);
+    }
+#endif //!IS_HEADLESS
+}
+
+/*!
+ The application calls this function to indicate that a device
+ has reported its FW version.
+
+ Public function defined in csf.h
+ */
+void Csf_deviceSensorOadUpdate( uint16_t srcAddr, uint16_t imgId, uint16_t blockNum, uint16_t NumBlocks)
+{
+    Board_Led_toggle(board_led_type_LED2);
+
+#ifndef IS_HEADLESS
+    uint8_t displayLine = 0;
+    
+    if((DisplayLine_sensorStart + (srcAddr - 1)) < DisplayLine_sensorEnd)
+    {
+        displayLine = (DisplayLine_sensorStart + (srcAddr - 1));
+    }
+    else
+    {
+        displayLine = DisplayLine_sensorEnd;
+    }
+    
+    if((blockNum + 1) == NumBlocks)
+    {
+        Board_Lcd_printf(displayLine, "Sensor 0x%04x: OAD completed, booting new image...", 
+                        srcAddr);
+    }
+    else
+    {
+        Board_Lcd_printf(displayLine, "Sensor 0x%04x: OAD image %d, block %d of %d",
+                srcAddr, imgId, blockNum + 1, NumBlocks);
+    }
+#endif //!IS_HEADLESS
 }
 
 /*!
@@ -761,6 +1075,8 @@ void Csf_toggleResponseReceived(ApiMac_sAddr_t *pSrcAddr, bool ledState)
 {
 #if defined(MT_CSF)
     uint16_t shortAddr = 0xFFFF;
+
+    Board_Lcd_printf(DisplayLine_info, "Info: Device 0x%04x LED toggle rsp received", selected_device);
 
     if(pSrcAddr)
     {
@@ -808,7 +1124,7 @@ void Csf_stateChangeUpdate(Cllc_states_t state)
     MTCSF_stateChangeIndCB(state);
 #endif
 #if IS_HLOS
-    /* send the update to appClient */
+    /* Send the update to appClient */
     LOG_printf(LOG_APPSRV_MSG_CONTENT,
                "stateChangeUpdate, newstate: (%d) %s\n",
                (int)(state), CSF_cllc_statename(state));
@@ -851,7 +1167,7 @@ static void processPCTrickleTimeoutCallback_WRAPPER(intptr_t timer_handle,
     processPCTrickleTimeoutCallback(0);
 }
 
-/* wrap HLOS to embedded callback */
+/* Wrap HLOS to embedded callback */
 static void processTackingTimeoutCallback_WRAPPER(intptr_t timer_handle,
                                                   intptr_t cookie)
 {
@@ -859,6 +1175,7 @@ static void processTackingTimeoutCallback_WRAPPER(intptr_t timer_handle,
     (void)cookie;
     processTackingTimeoutCallback(0);
 }
+
 #endif
 
 /*!
@@ -1044,7 +1361,7 @@ void Csf_setTrickleClock(uint32_t trickleTime, uint8_t frameType)
         TIMER_CB_destroy(tricklePAClkHandle);
         tricklePAClkHandle = 0;
 
-	/* then create new, only if needed */
+    /* then create new, only if needed */
         if(trickleTime > 0)
         {
             /* Setup timer */
@@ -1073,10 +1390,10 @@ void Csf_setTrickleClock(uint32_t trickleTime, uint8_t frameType)
     else if(frameType == ApiMac_wisunAsyncFrame_config)
     {
 #if IS_HLOS
-        /* always stop */
+        /* Always stop */
         TIMER_CB_destroy(tricklePCClkHandle);
         tricklePCClkHandle = 0;
-	/* and recreate only if needed */
+    /* and recreate only if needed */
         if(trickleTime > 0)
         {
             /* Setup timer */
@@ -1149,7 +1466,7 @@ void Csf_setJoinPermitClock(uint32_t joinDuration)
 void Csf_setConfigClock(uint32_t delay)
 {
 #if IS_HLOS
-    /* always destroy */
+    /* Always destroy */
     TIMER_CB_destroy( configClkHandle );
     configClkHandle = 0;
     /* and create if needed */
@@ -2190,6 +2507,27 @@ void removeBlackListItem(ApiMac_sAddr_t *pAddr)
     }
 }
 
+/*!
+ * @brief       This is an example function on how to remove a device
+ *              from this network.
+ *
+ * @param       addr - device address
+ *
+ * @return      true if found, false if not
+ */
+static bool removeDevice(ApiMac_sAddr_t addr)
+{
+    LOG_printf(LOG_ERROR, "removing device 0x%04x\n", addr.addr.shortAddr);
+
+    LOG_printf(LOG_ERROR, "sending Disassociation request to device 0x%04x\n", addr.addr.shortAddr);
+
+    /* Send a disassociate to the device */
+    Cllc_sendDisassociationRequest(addr.addr.shortAddr,
+                                     false);
+
+    return 1;
+}
+
 #if defined(TEST_REMOVE_DEVICE)
 /*!
  * @brief       This is an example function on how to remove a device
@@ -2228,6 +2566,9 @@ static void removeTheFirstDevice(void)
                     ApiMac_sAddr_t addr;
 
                     /* Send a disassociate to the device */
+                    Cllc_sendDisassociationRequest(item.devInfo.shortAddress,
+                                                   item.capInfo.rxOnWhenIdle);
+                    /* Remove device from the NV list */
                     Cllc_removeDevice(&item.devInfo.extAddress);
 
                     /* Remove it from the Device list */
@@ -2237,7 +2578,7 @@ static void removeTheFirstDevice(void)
                     addr.addrMode = ApiMac_addrType_extended;
                     memcpy(&addr.addr.extAddr, &item.devInfo.extAddress,
                            (APIMAC_SADDR_EXT_LEN));
-                    addBlackListItem(&addr);
+                    Csf_addBlackListItem(&addr);
                     break;
                 }
                 subId++;

@@ -39,8 +39,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
  *****************************************************************************/
 
 #if !defined(API_MAC_LINUX_H)
@@ -93,7 +93,12 @@ extern struct mt_msg_interface *API_MAC_msg_interface;
 /*! How long should the API-MAC wait when there are no messsages to process. */
 extern int ApiMacLinux_areq_timeout_mSecs;
 /*! Default value if not overridden via configuration file */
+#ifdef IS_HEADLESS
 #define DEFAULT_ApiMacLinux_areq_timeout_mSecs  (10 * 1000)
+#else
+/*! timeout every 500ms to allow UI polling */
+#define DEFAULT_ApiMacLinux_areq_timeout_mSecs  (300)
+#endif //HEADLESS
 
 extern struct mt_version_info MT_DEVICE_version_info;
 

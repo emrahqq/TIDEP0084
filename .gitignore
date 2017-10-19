@@ -2,3 +2,4 @@
 *.swp
 *~
 *.swo
+example/commissioner/webserver/uploads/*

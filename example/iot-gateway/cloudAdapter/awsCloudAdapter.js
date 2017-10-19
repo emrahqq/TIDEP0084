@@ -3,32 +3,32 @@
 
  @file awsCloudAdapter.js
 
- @brief Adapter between the cloudAgent and the Amazon AWS IoT Cloud 
+ @brief Adapter between the cloudAgent and the Amazon AWS IoT Cloud
 
  Group: WCS LPC
  $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
 
  ******************************************************************************
  $License: BSD3 2016 $
-  
+
    Copyright (c) 2015, Texas Instruments Incorporated
    All rights reserved.
-  
+
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
-  
+
    *  Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
-  
+
    *  Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-  
+
    *  Neither the name of Texas Instruments Incorporated nor the names of
       its contributors may be used to endorse or promote products derived
       from this software without specific prior written permission.
-  
+
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
    THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -120,11 +120,11 @@ function AwsCloudAdapter() {
             console.log('status : ' + thingName + ' reporting data');
             //console.log(thingName + ':\n' + JSON.stringify(stateObject.state.reported, null, 4));
         else
-            console.log("status : error msg"); 
+            console.log("status : error msg");
 
     });
 
-	/* All requests from the Cloud will be received in this Delta event */	
+	/* All requests from the Cloud will be received in this Delta event */
 	thingShadows.on('delta', function(thingName, stateObject) {
 		//console.log('AWS Cloud Adapter delta');
 		//console.log('Delta on: ' + thingName);
@@ -183,7 +183,7 @@ function AwsCloudAdapter() {
 		if (awsCloudAdapterInstance.connected != true) {
 			return;
 		}
-		
+
 		var devInfoThing = 'ti_iot_' + nwkExtAddr + '_' + devInfo.ext_addr;
 		/* If the device thing ins't registered yet, then register it before sending the update */
 		if (awsCloudAdapterInstance.registered[devInfoThing] != 1) {
@@ -194,7 +194,7 @@ function AwsCloudAdapter() {
 				thingShadows['update'](devInfoThing, { state : { desired : null, reported : devInfo }});
 			}, 5000);
 			awsCloudAdapterInstance.registered[devInfoThing] = 1;
-		}	
+		}
 		else {
 			/* Set desired to null in order to remove any toggleLED requests */
 			thingShadows['update'](devInfoThing, { state : { desired : null, reported : devInfo }});

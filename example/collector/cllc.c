@@ -42,8 +42,8 @@
    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
- $Release Name: TI-15.4Stack Linux x64 SDK ENG$
- $Release Date: Mar 08, 2017 (2.01.00.10)$
+ $Release Name: TI-15.4Stack Linux x64 SDK$
+ $Release Date: Jun 28, 2017 (2.02.00.03)$
  *****************************************************************************/
 
 /******************************************************************************
@@ -104,7 +104,7 @@
 #else
 #define CLLC_FH_MAX_TRICKLE             30000
 #define CLLC_FH_MIN_TRICKLE             30000
-#endif	
+#endif
 #endif
 #define PA_HOP_NEIGHBOR_FOUND_MASK      0x1
 #define PA_FIXED_NEIGHBOR_FOUND_MASK    0x2
@@ -181,7 +181,7 @@ STATIC coordInformation_t coordInfoBlock =
                  0, /* During INIT this is set to: CONFIG_COORD_SHORT_ADDR, */
                  Cllc_states_initWaiting,
                  Cllc_coordStates_initialized
-                };				
+                };
 /* default channel mask */
 STATIC uint8_t chanMask[APIMAC_154G_CHANNEL_BITMAP_SIZ];
 /* Linked list to store incoming PAN descriptors */
@@ -320,17 +320,12 @@ static void processIncomingAsyncUSIE(uint8_t frameType, uint8_t* pIEContent);
 void Cllc_init(ApiMac_callbacks_t *pMacCbs, Cllc_callbacks_t *pCllcCbs)
 {
     uint16_t panId = CONFIG_PAN_ID;
-
-    /* Initialize PA/LNA if enabled */
-    ApiMac_mlmeSetReqUint8(ApiMac_attribute_rangeExtender,
-                           (uint8_t)CONFIG_RANGE_EXT_MODE);
-
-    /* linux specific init */
+    /* Linux specific init */
     if(CONFIG_FH_ENABLE)
     {
         memcpy( chanMask, linux_FH_ASYNC_CHANNEL_MASK, sizeof( chanMask ));
     }
-    else 
+    else
     {
         memcpy( chanMask, linux_CONFIG_CHANNEL_MASK, sizeof(chanMask));
     }
@@ -353,18 +348,18 @@ void Cllc_init(ApiMac_callbacks_t *pMacCbs, Cllc_callbacks_t *pCllcCbs)
     pMacCbs->pStartCnfCb = startCnfCb;
     pMacCbs->pDisassociateIndCb = disassocIndCb;
     pMacCbs->pDataIndCb = dataIndCb;
-    
-	if(!CONFIG_FH_ENABLE)
+
+    if(!CONFIG_FH_ENABLE)
     {
-	    pMacCbs->pBeaconNotifyIndCb = beaconNotifyIndCb;
+        pMacCbs->pBeaconNotifyIndCb = beaconNotifyIndCb;
         pMacCbs->pScanCnfCb = scanCnfCb;
-	    pMacCbs->pOrphanIndCb = orphanIndCb;
+        pMacCbs->pOrphanIndCb = orphanIndCb;
     }
-	else
-	{
+    else
+    {
         pMacCbs->pWsAsyncIndCb = wsAsyncIndCb;
     }
-		
+
     /* initialize association table */
     memset(Cllc_associatedDevList, 0xFF,
            (sizeof(Cllc_associated_devices_t) * CONFIG_MAX_DEVICES));
@@ -375,7 +370,7 @@ void Cllc_init(ApiMac_callbacks_t *pMacCbs, Cllc_callbacks_t *pCllcCbs)
     /* setup short address */
     ApiMac_mlmeSetReqUint16(ApiMac_attribute_shortAddress,
                                 coordInfoBlock.shortAddr);
-	if(!CONFIG_FH_ENABLE)
+    if(!CONFIG_FH_ENABLE)
     {
         /* initialize join permit timer clock */
         Csf_initializeJoinPermitClock();
@@ -607,6 +602,8 @@ void Cllc_removeDevice(ApiMac_sAddrExt_t *pExtAddr)
                        sizeof(Cllc_associated_devices_t));
                 /* remove from NV */
                 Csf_removeDeviceListItem(pExtAddr);
+                /* The corresponding device is removed, return from the function call */
+                return;
             }
         }
     }
@@ -617,15 +614,22 @@ void Cllc_removeDevice(ApiMac_sAddrExt_t *pExtAddr)
 
  Public function defined in cllc.h
  */
-void Cllc_sendDisassociationRequest(void)
+void Cllc_sendDisassociationRequest(uint16_t shortAddr,bool rxOnIdle)
 {
     ApiMac_mlmeDisassociateReq_t disassocReq;
     memset(&disassocReq, 0, sizeof(ApiMac_mlmeDisassociateReq_t));
     disassocReq.deviceAddress.addrMode = ApiMac_addrType_short;
-    disassocReq.deviceAddress.addr.shortAddr = coordInfoBlock.shortAddr;
+    disassocReq.deviceAddress.addr.shortAddr = shortAddr;
     disassocReq.devicePanId = coordInfoBlock.panID;
     disassocReq.disassociateReason = ApiMac_disassocateReason_coord;
-    disassocReq.txIndirect = false;
+    if(rxOnIdle == false)
+    {   /* Sleep device */
+        disassocReq.txIndirect = true;
+    }
+    else
+    {   /* Non-sleep device */
+        disassocReq.txIndirect = false;
+    }
     ApiMac_mlmeDisassociateReq(&disassocReq);
 }
 
