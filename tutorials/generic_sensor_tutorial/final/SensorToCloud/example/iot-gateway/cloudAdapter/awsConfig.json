@@ -1,0 +1,1 @@
+{"certDir":"/home/root/linux_s2c/example/commissioner/webserver/uploads/","clientId":"BBBTI","region":"us-east-1","port":8883,"host":"a23op339u3ex9t.iot.us-east-1.amazonaws.com","debug":false,"keyPath":"private.pem.key","certPath":"certificate.pem.crt","caPath":"root-CA.crt"}

@@ -1,0 +1,7 @@
+*.log
+*.swp
+*~
+*.swo
+example/commissioner/webserver/uploads/*
+example/iot-gateway/node_modules/*
+example/iot-gateway/package-lock.json
