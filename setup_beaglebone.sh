@@ -95,8 +95,6 @@ if [ -d "${HERE}/example/iot-gateway/node_modules" ]
 then
   echo "node_modules found for iot-gateway!"
 else
-  npm config set proxy http://webproxy.ext.ti.com:80
-  npm config set registry http://registry.npmjs.org/
   cd ${HERE}/example/iot-gateway/
   echo "Installing node_modules for iot-gateway"
   npm install
