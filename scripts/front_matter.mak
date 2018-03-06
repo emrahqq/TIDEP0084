@@ -135,7 +135,7 @@ recursive_MAKE := ${MAKE} -f ${main_MAKEFILE}
 #bbb_TI_PROC_SDK_DIR=${HOME}/ti-processor-sdk-linux-am335x-evm-03.00.00.01
 #bbb_TI_PROC_SDK_DIR=${HOME}/ti-processor-sdk-linux-am335x-evm-02.00.02.11
 #bbb_TI_PROC_SDK_DIR=${HOME}/ti-processor-sdk-linux-am335x-evm-03.01.00.06
-bbb_TI_PROC_SDK_DIR=${HOME}/ti-processor-sdk-linux-am335x-evm-03.02.00.05
+bbb_TI_PROC_SDK_DIR=${HOME}/ti-processor-sdk-linux-am335x-evm-04.02.00.09
 
 #----------------------------------------
 # Hint/Example: Make a symbolic link like this:

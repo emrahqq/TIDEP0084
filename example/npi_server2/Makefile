@@ -4,7 +4,7 @@
 # @brief TIMAC 2.0 Linux makefile for the NPI (network processor interface) V2 application
 #
 # Group: WCS LPC
-# $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+# $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 #
 #############################################################
 # $License: BSD3 2016 $
@@ -40,7 +40,7 @@
 #   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #############################################################
 # $Release Name: TI-15.4Stack Linux x64 SDK$
-# $Release Date: July 14, 2016 (2.00.00.30)$
+# $Release Date: Sept 27, 2017 (2.04.00.13)$
 #############################################################
 
 _default: _app
@@ -53,6 +53,7 @@ COMPONENTS_HOME=../../components
 
 CFLAGS += -I${COMPONENTS_HOME}/common/inc
 CFLAGS += -I${COMPONENTS_HOME}/api/inc
+#CFLAGS += -DIS_HEADLESS
 
 C_SOURCES = 
 C_SOURCES += linux_main.c

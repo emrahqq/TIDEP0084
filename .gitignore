@@ -3,3 +3,8 @@
 *~
 *.swo
 example/commissioner/webserver/uploads/*
+*.o
+*.d
+*.a
+**/node_modules
+**/obj

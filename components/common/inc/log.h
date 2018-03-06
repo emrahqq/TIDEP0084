@@ -4,7 +4,7 @@
  @brief TIMAC 2.0 API generic log to file or stream
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -40,7 +40,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 
 #if !defined(LOG_H)
@@ -206,17 +206,19 @@ void LOG_close(void);
 #define LOG_ALWAYS 0         /*! override and log this */
 /* All DBG items should be specific bits! */
 
-#define LOG_FATAL        _bit0
-#define LOG_ERROR        _bit1
-#define LOG_WARN         _bit2
-#define LOG_DBG_MUTEX    _bit3  /*! mutex debug messages enabled */
-#define LOG_DBG_THREAD   _bit4  /*! thread debug messages enabled */
-#define LOG_DBG_FIFO     _bit5  /*! fifo   debug messages enabled */
-#define LOG_DBG_UART       _bit6  /*! uart   debug messages enabled */
-#define LOG_DBG_UART_RAW   _bit7  /*! uart   debug (raw rd/wr bytes)*/
-#define LOG_DBG_SLEEP      _bit8  /*! sleep  debug messages enabled */
-#define LOG_DBG_SOCKET     _bit9  /*! socket debug messages enabled */
-#define LOG_DBG_SOCKET_RAW _bit9  /*! socket debug messages enabled */
+#define LOG_FATAL             _bit0
+#define LOG_ERROR             _bit1
+#define LOG_WARN              _bit2
+#define LOG_DBG_MUTEX         _bit3   /*! mutex debug messages enabled */
+#define LOG_DBG_THREAD        _bit4   /*! thread debug messages enabled */
+#define LOG_DBG_FIFO          _bit5   /*! fifo   debug messages enabled */
+#define LOG_DBG_UART          _bit6   /*! uart   debug messages enabled */
+#define LOG_DBG_UART_RAW      _bit7   /*! uart   debug (raw rd/wr bytes)*/
+#define LOG_DBG_SLEEP         _bit8   /*! sleep  debug messages enabled */
+#define LOG_DBG_SOCKET        _bit9   /*! socket debug messages enabled */
+#define LOG_DBG_SOCKET_RAW    _bit9   /*! socket debug messages enabled */
+#define LOG_DBG_COLLECTOR     _bit10  /*! Collector debug messages enabled */
+#define LOG_DBG_COLLECTOR_RAW _bit11  /*! Collector raw data debug messages enabled */
 
 /* Bit ranges */
 #define LOG_DBG_NV_bitnum_first 12

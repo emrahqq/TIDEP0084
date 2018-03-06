@@ -7,7 +7,7 @@
  This module is the Coordinator Logical Link Controller for the application.
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -43,7 +43,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 
 /******************************************************************************
@@ -119,6 +119,10 @@
  to each the device that associates to it
  */
 #define CLLC_ASSOC_DEVICE_STARTING_NUMBER 1
+/*! link quality */
+#define CONFIG_LINKQUALITY                1
+/*! percent filter */
+#define CONFIG_PERCENTFILTER              0xFF
 
 /******************************************************************************
  Security constants and definitions
@@ -200,6 +204,7 @@ STATIC uint8_t fhGtkHash2[] = CLLC_FH_GTK2HASH;
 STATIC uint8_t fhGtkHash3[] = CLLC_FH_GTK3HASH;
 STATIC uint32_t fhPAtrickleTime; /* linux: these come from the configuration file at startup */
 STATIC uint32_t fhPCtrickleTime;
+/* set of channels on which target nodes are expected to listen */
 STATIC uint8_t optPAChMask[APIMAC_154G_CHANNEL_BITMAP_SIZ];
 /* set of channels on which target nodes are expected to listen */
 STATIC uint8_t optPCChMask[APIMAC_154G_CHANNEL_BITMAP_SIZ];
@@ -263,6 +268,8 @@ STATIC CONST ApiMac_secLevel_t secLevel = ApiMac_secLevel_encMic32;
 STATIC CONST ApiMac_keyIdMode_t secKeyIdMode = ApiMac_keyIdMode_8;
 STATIC CONST uint8_t secKeyIndex = 3; /* cant be zero for implicit key identifier */
 
+bool networkStarted = 0;
+
 //STATIC bool macSecurity = CONFIG_SECURE;
 #define macSecurity CONFIG_SECURE /* linux, we use the config variable */
 
@@ -319,7 +326,9 @@ static void processIncomingAsyncUSIE(uint8_t frameType, uint8_t* pIEContent);
  */
 void Cllc_init(ApiMac_callbacks_t *pMacCbs, Cllc_callbacks_t *pCllcCbs)
 {
+
     uint16_t panId = CONFIG_PAN_ID;
+
     /* Linux specific init */
     if(CONFIG_FH_ENABLE)
     {
@@ -393,17 +402,19 @@ void Cllc_init(ApiMac_callbacks_t *pMacCbs, Cllc_callbacks_t *pCllcCbs)
         ApiMac_mlmeSetFhReqUint8(ApiMac_FHAttribute_unicastDwellInterval,
                                  CONFIG_DWELL_TIME);
         ApiMac_mlmeSetFhReqUint8(ApiMac_FHAttribute_broadcastDwellInterval,
-                                 CONFIG_DWELL_TIME);
+                                 FH_BROADCAST_DWELL_TIME);
 
-        /*
-         * set up the number of NON-sleep and sleep device
+        ApiMac_mlmeSetFhReqUint32(ApiMac_FHAttribute_BCInterval,
+                                  (FH_BROADCAST_INTERVAL >> 1));
+
+         /* set up the number of NON-sleep and sleep device
          * the order is important. Need to set up the number of non-sleep first
          */
 
-        ApiMac_mlmeSetFhReqUint8(ApiMac_FHAttribute_numNonSleepDevice,
-                                  FH_NUM_NON_SLEEPY_NEIGHBORS);
-        ApiMac_mlmeSetFhReqUint8(ApiMac_FHAttribute_numSleepDevice,
-                                  FH_NUM_SLEEPY_NEIGHBORS);
+        ApiMac_mlmeSetFhReqUint16(ApiMac_FHAttribute_numNonSleepDevice,
+                                 FH_NUM_NON_SLEEPY_HOPPING_NEIGHBORS);
+        ApiMac_mlmeSetFhReqUint16(ApiMac_FHAttribute_numSleepDevice,
+                                 FH_NUM_NON_SLEEPY_FIXED_CHANNEL_NEIGHBORS);
 
         /* set Exclude Channels */
         sizeOfChannelMask = sizeof(configChannelMask)/sizeof(uint8_t);
@@ -529,25 +540,45 @@ void Cllc_restoreNetwork(Llc_netInfo_t *pNetworkInfo, uint8_t numDevices,
     {
         ApiMac_mlmeSetReqArray(ApiMac_attribute_extendedAddress,
     			(uint8_t*)(pNetworkInfo->devInfo.extAddress));
-    	ApiMac_mlmeSetReqUint16(ApiMac_attribute_shortAddress,
-    	                           pNetworkInfo->devInfo.shortAddress);
     }
     else
     {
         coordInfoBlock.channel = pNetworkInfo->channel;
-
-        ApiMac_mlmeSetReqUint16(ApiMac_attribute_shortAddress,
-                                 pNetworkInfo->devInfo.shortAddress);
     }
+
+    ApiMac_mlmeSetReqUint16(ApiMac_attribute_shortAddress,
+                             pNetworkInfo->devInfo.shortAddress);
 
     sendStartReq(pNetworkInfo->fh);
 
-    /* repopulate association table */
-    for(i = 0; i < numDevices; i++, pDevList++)
+    if (pDevList)
     {
-        /* Add to association table */
-        maintainAssocTable(&pDevList->devInfo, &pDevList->capInfo, 1, 0,
-                           (false));
+        /* repopulate association table */
+        for(i = 0; i < numDevices; i++, pDevList++)
+        {
+            /* Add to association table */
+            maintainAssocTable(&pDevList->devInfo, &pDevList->capInfo, 1, 0,
+                               (false));
+        }
+    }
+    else
+    {
+        Llc_deviceListItem_t item;
+        /* repopulate association table */
+        for(i = 0; i < numDevices; i++)
+        {
+            Csf_getDeviceItem(i, &item);
+#ifdef FEATURE_MAC_SECURITY
+            /* Add device to security device table */
+            Cllc_addSecDevice(item.devInfo.panID,
+                              item.devInfo.shortAddress,
+                              &item.devInfo.extAddress,
+                              item.rxFrameCounter);
+#endif /* FEATURE_MAC_SECURITY */
+            /* Add to association table */
+            maintainAssocTable(&item.devInfo, &item.capInfo, 1, 0,
+                               (false));
+        }
     }
 }
 
@@ -780,20 +811,20 @@ static void processState(Cllc_coord_states_t state)
     switch(state)
     {
         case Cllc_coordStates_scanActive:
-		    if(!CONFIG_FH_ENABLE)
+            if(!CONFIG_FH_ENABLE)
             {
-            /* Active scan */
-            sendScanReq(ApiMac_scantype_active);
+                /* Active scan */
+                sendScanReq(ApiMac_scantype_active);
             }
-			break;
+            break;
 
         case Cllc_coordStates_scanActiveCnf:
-		    if(!CONFIG_FH_ENABLE)
+            if(!CONFIG_FH_ENABLE)
             {
-            /* Energy detect scan */
-            sendScanReq(ApiMac_scantype_energyDetect);
+                /* Energy detect scan */
+                sendScanReq(ApiMac_scantype_energyDetect);
             }
-			break;
+            break;
 
         case Cllc_coordStates_scanEdCnf:
 
@@ -1167,9 +1198,9 @@ static void assocIndCb(ApiMac_mlmeAssociateInd_t *pData)
 }
 
 /*!
- * @brief       Handle Disassociate Confirm callback
+ * @brief       Handle Disassociate indication callback
  *
- * @param       pData - pointer to Disassociate Confirm structure
+ * @param       pData - pointer to disassociate indication structure
  */
 static void disassocIndCb(ApiMac_mlmeDisassociateInd_t *pData)
 {
@@ -1333,13 +1364,6 @@ static void wsAsyncIndCb(ApiMac_mlmeWsAsyncInd_t *pData)
 
     processIncomingFHframe(pData->fhFrameType);
 
-#ifdef FEATURE_MAC_SECURITY
-    /* Add EUI to security device table */
-    Cllc_addSecDevice(pData->srcPanId, pData->srcAddr.addr.shortAddr,
-                      &(pData->srcAddr.addr.extAddr), pData->frameCntr);
-#endif /* FEATURE_MAC_SECURITY */
-
-
     if(macCallbacksCopy.pWsAsyncIndCb != NULL)
     {
         macCallbacksCopy.pWsAsyncIndCb(pData);
@@ -1443,6 +1467,12 @@ static void sendAsyncReq(uint8_t frameType)
     ApiMac_mlmeWSAsyncReq_t asyncReq;
     uint8_t sizeOfChannelMask;
     uint8_t asyncChannelMask[APIMAC_154G_CHANNEL_BITMAP_SIZ];
+
+    if(networkStarted == 0)
+    {
+      return;
+    }
+
     memcpy( asyncChannelMask, linux_FH_ASYNC_CHANNEL_MASK, sizeof(asyncChannelMask));
 
     /* set of Exclude Channels */
@@ -1503,7 +1533,7 @@ static void sendAsyncReq(uint8_t frameType)
         ApiMac_mlmeSetFhReqArray(ApiMac_FHAttribute_netName,
                                  (uint8_t*)&fhNetname[0]);
         ApiMac_mlmeSetFhReqUint16(ApiMac_FHAttribute_panSize,
-                                  (CONFIG_FH_PAN_SIZE));
+                                  (CONFIG_MAX_DEVICES));
 
         /* Fill in the information for async request */
         asyncReq.frameType = ApiMac_wisunAsyncFrame_advertisement;
@@ -1580,6 +1610,8 @@ static void sendStartReq(bool startFH)
 
     /* send Start Req to MAC API */
     ApiMac_mlmeStartReq(&startReq);
+
+    networkStarted = 1;
 }
 
 /*!
@@ -1691,11 +1723,11 @@ static void processIncomingAsyncUSIE(uint8_t frameType, uint8_t* pIEContent)
         /* Check if channel plan is based on REG_DOMAIN */
         if (chPlan == 0)
         {
-            fixedChannel = Util_parseUint16(pIEContent + 6);
+            fixedChannel = Util_parseUint16(pIEContent + USIE_FIXED_CHANNEL_OFFSET_CP0);
         }
         else
         {
-            fixedChannel = Util_parseUint16(pIEContent + 8);
+            fixedChannel = Util_parseUint16(pIEContent + USIE_FIXED_CHANNEL_OFFSET_CP1);
         }
         if(fixedChannel < APIMAC_154G_MAX_NUM_CHANNEL)
         {

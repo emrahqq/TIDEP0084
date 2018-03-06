@@ -54,7 +54,7 @@ var Long = require("long");
 /********************************************************************
  * Defines
  * *****************************************************************/
-var Smsgs_dataFields = Object.freeze({
+const Smsgs_dataFields = Object.freeze({
     tempSensor: 0x0001,
     lightSensor: 0x0002,
     humiditySensor: 0x0004,
@@ -65,7 +65,43 @@ var Smsgs_dataFields = Object.freeze({
     batteryVoltageSensor: 0x0080,
     hallEffectSensor: 0x0100,
     fanSensor: 0x0200,
-    doorLockSensor: 0x0400
+    doorLockSensor: 0x0400,
+    waterLeakSensor: 0x0800
+});
+
+const dIn_iid = Object.freeze({
+    motion: 0,
+    hallEffectOpen: 1,
+    hallEffectTampered: 2,
+    doorLock: 3,
+    waterLeak: 4
+});
+
+const temperature_iid = Object.freeze({
+    ambienceTemp: 0,
+    objectTemp: 1,
+    humidityTemp: 2,
+    pressureTemp: 3
+});
+
+const illuminance_iid = Object.freeze({
+    lightSensor: 0
+});
+
+const humidity_iid = Object.freeze({
+    humiditySensor: 0
+});
+
+const barometer_iid = Object.freeze({
+    pressureSensor: 0
+});
+
+const actuator_iid = Object.freeze({
+    fan: 0
+});
+
+const generic_iid = Object.freeze({
+    batteryVoltage: 0
 });
 
 
@@ -81,7 +117,7 @@ var Smsgs_dataFields = Object.freeze({
 function Device(shortAddress, extAddress, capabilityInfo) {
     var devInfo = this;
     devInfo.shortAddress = shortAddress;
-    devInfo.extAddress = extAddress.toString(16);
+    devInfo.extAddress = extAddress;
     devInfo.capabilityInfo = capabilityInfo;
     devInfo.active = 'true';
     devInfo.so = new SmartObject();
@@ -109,6 +145,21 @@ function updateSensor(so, type, instance, value, units) {
             "units": units,
             "minMeaValue": value,
             "maxMeaValue": value
+        });
+    }
+}
+
+function updateActuator(so, type, instance, on, dimmer, desc) {
+    /* Sensor already exists, update its values */
+    if (so.has(type, instance)) {
+        so.write(type, instance, 'on/off', on, function (err, data) { });
+        so.write(type, instance, "dimmer", dimmer, function (err, data) { });    
+    }
+    /* Need to initialize the sensor */
+    else {
+        so.init(type, instance, {
+            "on/off": on,
+            "dimmer": dimmer
         });
     }
 }
@@ -154,74 +205,61 @@ Device.prototype.rxSensorData = function (sensorData) {
     this.active = 'true';
 	/* Check the support sensor Types and
 	add information elements for those */
-    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.tempSensor){
+    if (sensorData.frameControl & Smsgs_dataFields.tempSensor){
         /* update the sensor values */
-        this.temperaturesensor = {
-            ambienceTemp: sensorData.sDataMsg.tempSensor.ambienceTemp,
-            objectTemp: sensorData.sDataMsg.tempSensor.objectTemp
-        };
-        // create/upate ambience temp data
-        updateSensor(this.so, 'temperature', 0, sensorData.sDataMsg.tempSensor.ambienceTemp, 'Cels');
+        this.temperaturesensor = sensorData.tempSensor;
+        updateSensor(this.so, 'temperature', temperature_iid.ambienceTemp, sensorData.tempSensor.ambienceTemp, 'Cel');
+        updateSensor(this.so, 'temperature', temperature_iid.objectTemp, sensorData.tempSensor.objectTemp, 'Cel');
     }
-    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.lightSensor) {
+    if (sensorData.frameControl & Smsgs_dataFields.lightSensor) {
         /* update the sensor values */
-        this.lightsensor = {
-            rawData: sensorData.sDataMsg.lightSensor.rawData
-        };
-        updateSensor(this.so, 'illuminance', 0, sensorData.sDataMsg.lightSensor.rawData, 'Lux');
+        this.lightsensor = sensorData.lightSensor;
+        updateSensor(this.so, 'illuminance', illuminance_iid.lightSensor, sensorData.lightSensor.rawData, 'Lux');
     }
-    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.humiditySensor) {
+    if (sensorData.frameControl & Smsgs_dataFields.humiditySensor) {
         /* update the sensor values */
-        this.humiditysensor = {
-            temp: sensorData.sDataMsg.humiditySensor.temp,
-            humidity: sensorData.sDataMsg.humiditySensor.humidity
-        };
-        updateSensor(this.so, 'humidity', 0, sensorData.sDataMsg.humiditySensor.humidity, '%RH');
+        this.humiditysensor = sensorData.humiditySensor;
+        updateSensor(this.so, 'temperature', temperature_iid.humidityTemp, sensorData.humiditySensor.temp, 'Cel');
+        updateSensor(this.so, 'humidity', humidity_iid.humiditySensor, sensorData.humiditySensor.humidity, '% RH');
     }
 
-    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.pressureSensor) {
+    if (sensorData.frameControl & Smsgs_dataFields.pressureSensor) {
         /* update the sensor values */
-        this.pressuresensor = {
-            temp: sensorData.sDataMsg.pressureSensor.tempValue,
-            pressure: sensorData.sDataMsg.pressureSensor.pressureValue
-        };
-        updateSensor(this.so, 'barometer', 0, sensorData.sDataMsg.pressureSensor.pressureValue, 'mBar');
+        this.pressuresensor = sensorData.pressureSensor;
+        updateSensor(this.so, 'temperature', temperature_iid.pressureTemp, sensorData.pressureSensor.tempValue, 'Cel');
+        updateSensor(this.so, 'barometer', barometer_iid.pressureSensor, sensorData.pressureSensor.pressureValue, 'mBar');
     }
 
-    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.motionSensor) {
-            this.motionsensor = {
-                isMotion: sensorData.sDataMsg.motionSensor.isMotion
-      };
-      updateDigInSensor(this.so, 'motion', 0, sensorData.sDataMsg.motionSensor.isMotion, 'Motion Sensor');
+    if (sensorData.frameControl & Smsgs_dataFields.motionSensor) {
+        this.motionsensor = sensorData.motionSensor;
+        updateDigInSensor(this.so, 'dIn', dIn_iid.motion, sensorData.motionSensor.isMotion, 'Motion Status');
     }
 
-    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.batteryVoltageSensor) {
-        this.batterysensor = {
-            voltage: sensorData.sDataMsg.batterySensor.voltageValue
-      };
-      updateSensor(this.so, 'voltage', 0, sensorData.sDataMsg.batterySensor.voltageValue, 'mV');
+    if (sensorData.frameControl & Smsgs_dataFields.batteryVoltageSensor) {
+        this.batterysensor = sensorData.batterySensor;
+        updateSensor(this.so, 'generic', 0, sensorData.batterySensor.voltageValue, 'mV');
     }
 
-    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.hallEffectSensor) {
-      this.halleffectsensor = {
-        isOpen: sensorData.sDataMsg.hallEffectSensor.isOpen,
-        isTampered: sensorData.sDataMsg.hallEffectSensor.isTampered
-      };
-      updateDigInSensor(this.so, 'halleffect', 0, sensorData.sDataMsg.hallEffectSensor.isOpen, 'Door/Window Sensor');
+    if (sensorData.frameControl & Smsgs_dataFields.hallEffectSensor) {
+        this.halleffectsensor = sensorData.hallEffectSensor;
+        updateDigInSensor(this.so, 'dIn', dIn_iid.hallEffectOpen, sensorData.hallEffectSensor.isOpen, 'Door/Window Status');
+        updateDigInSensor(this.so, 'dIn', dIn_iid.hallEffectTampered, sensorData.hallEffectSensor.isTampered, 'Door/Window Tamper Status');
     }
 
-    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.fanSensor) {
-        this.fansensor = {
-            fanSpeed: sensorData.sDataMsg.fanSensor.fanSpeed
-        };
-        updateSensor(this.so, 'fan', 0, sensorData.sDataMsg.fanSensor.fanSpeed, "Fan Speed");
+    if (sensorData.frameControl & Smsgs_dataFields.fanSensor) {
+        this.fansensor = sensorData.fanSensor;
+        updateActuator(this.so, 'actuator', actuator_iid.fan, (sensorData.fanSensor.fanSpeed !== 0), sensorData.fanSensor.fanSpeed, "Fan Speed");
     }
 
-    if (sensorData.sDataMsg.frameControl & Smsgs_dataFields.doorLockSensor) {
-        this.doorlocksensor = {
-            isLocked: sensorData.sDataMsg.doorLockSensor.isLocked
-        };
-        updateDigInSensor(this.so, 'doorlock', 0, sensorData.sDataMsg.doorLockSensor.isLocked, "Lock Status");
+    if (sensorData.frameControl & Smsgs_dataFields.doorLockSensor) {
+        this.doorlocksensor = sensorData.doorLockSensor;
+        updateDigInSensor(this.so, 'dIn', dIn_iid.doorLock, sensorData.doorLockSensor.isLocked, "Lock Status");
+    }
+
+    if (sensorData.frameControl & Smsgs_dataFields.waterLeakSensor){
+        /* update the sensor values */
+        this.waterleaksensor = sensorData.waterleakSensor;
+        updateDigInSensor(this.so, 'dIn', dIn_iid.waterLeak, sensorData.waterleakSensor.status, 'Water Leak Status');
     }
 
     /* update rssi information */
@@ -233,33 +271,76 @@ Device.prototype.rxSensorData = function (sensorData) {
 
 Device.prototype.rxConfigRspInd = function (devConfigData) {
     var device = this;
-    if (devConfigData.sConfigMsg.status == 0) {
+    if (devConfigData.status == 0) {
         device.active = 'true';
 		/* Check the support sensor Types and add
 		information elements for those */
-        if (devConfigData.sConfigMsg.frameControl & Smsgs_dataFields.tempSensor) {
+        if (devConfigData.frameControl & Smsgs_dataFields.tempSensor) {
             /* initialize sensor information element */
             device.temperaturesensor = {
                 ambienceTemp: 0,
                 objectTemp: 0
             };
         }
-        if (devConfigData.sConfigMsg.frameControl & Smsgs_dataFields.lightSensor) {
+        if (devConfigData.frameControl & Smsgs_dataFields.lightSensor) {
             /* initialize sensor information element */
             device.lightsensor = {
                 rawData: 0
             };
         }
-        if (devConfigData.sConfigMsg.frameControl & Smsgs_dataFields.humiditySensor) {
+        if (devConfigData.frameControl & Smsgs_dataFields.humiditySensor) {
             /* initialize sensor information element */
             device.humiditysensor = {
                 temp: 0,
                 humidity: 0
             };
         }
-        device.reportingInterval = devConfigData.sConfigMsg.reportingInterval;
+        if (sensorData.frameControl & Smsgs_dataFields.pressureSensor) {
+            /* update the sensor values */
+            device.pressuresensor = {
+                temp: 0,
+                pressure: 0
+            };
+        }
+        if (sensorData.frameControl & Smsgs_dataFields.motionSensor) {
+            device.motionsensor = {
+                isMotion: false
+            };
+        }
+
+        if (sensorData.frameControl & Smsgs_dataFields.batteryVoltageSensor) {
+            device.batterysensor = {
+                voltage: 0
+            };
+        }
+
+        if (sensorData.frameControl & Smsgs_dataFields.hallEffectSensor) {
+            device.halleffectsensor = {
+                isOpen: false,
+                isTampered: false
+            };
+        }
+
+        if (sensorData.frameControl & Smsgs_dataFields.fanSensor) {
+            device.fansensor = {
+                fanSpeed: 0
+            };
+        }
+
+        if (sensorData.frameControl & Smsgs_dataFields.doorLockSensor) {
+            device.doorlocksensor = {
+                isLocked: false
+            };
+        }
+        if (devConfigData.frameControl & Smsgs_dataFields.waterleakSensor) {
+            /* initialize sensor information element */
+            device.waterleaksensor = {
+                status: 0
+            };
+        }
+        device.reportingInterval = devConfigData.reportingInterval;
         if (device.capabilityInfo.rxOnWhenIdle == 1) {
-            device.pollingInterval = devConfigData.sConfigMsg.pollingInterval;
+            device.pollingInterval = devConfigData.pollingInterval;
         }
         else {
             device.pollingInterval = "always on device";
@@ -272,8 +353,10 @@ Device.prototype.deviceNotActive = function (inactiveDevInfo) {
 }
 
 Device.prototype.devUpdateInfo = function (shortAddr, capInfo) {
-    this.shortAddress = shortAddr;
-    this.capabilityInfo = capInfo;
+    if (shortAddr != null)
+        this.shortAddress = shortAddr;
+    if (capabilityInfo != null)
+        this.capabilityInfo = capInfo;
     this.active = 'true';
 }
 

@@ -5,7 +5,7 @@
  @brief TI-15.4 Stack configuration parameters for Collector applications
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -41,7 +41,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 #ifndef CONFIG_H
 #define CONFIG_H
@@ -49,6 +49,7 @@
 /******************************************************************************
  Includes
  *****************************************************************************/
+#include "api_mac.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -63,10 +64,10 @@ extern "C"
 /*
    NOTE ABOUT CONFIGURATION PARAMTERS
    ----------------------------------
-   In the embedded device, these are hard coded configuration items
-   In the Linux impimentation the are configurable in 2 ways.
+   In the embedded device, these are hard coded configuration items.
+   In the Linux impimentation they are configurable in 2 ways:
    Method #1 via hard coding with the _DEFAULT value.
-   Method #2 via the "appsrv.cfg" configuration file.
+   Method #2 via the "*.cfg" configuration file.
    This "extern bool" hidden via the macro exists to facilitate
    the linux configuration scheme.
  */
@@ -97,15 +98,6 @@ extern bool linux_CONFIG_FH_ENABLE;
 
 /*! maximum beacons possibly received */
 #define CONFIG_MAX_BEACONS_RECD      200
-/*! link quality */
-extern uint8_t linux_CONFIG_LINKQUALITY;
-#define CONFIG_LINKQUALITY           linux_CONFIG_LINKQUALITY
-#define CONFIG_LINKQUALITY_DEFAULT  1
-
-/*! percent filter */
-extern uint8_t linux_CONFIG_PERCENTFILTER;
-#define CONFIG_PERCENTFILTER         linux_CONFIG_PERCENTFILTER
-#define CONFIG_PERCENTFILTER_DEFAULT 0xFF
 
 /*! maximum devices in association table */
 #define CONFIG_MAX_DEVICES           50
@@ -143,10 +135,78 @@ extern int linux_CONFIG_CHANNEL_PAGE;
 #error "PHY ID is wrong."
 #endif
 
-/*! Scan duration */
+/*! MAC Parameter */
+/*! Min BE - Minimum Backoff Exponent */
+extern int linux_CONFIG_MIN_BE;
+#define CONFIG_MIN_BE linux_CONFIG_MIN_BE
+#define CONFIG_MIN_BE_DEFAULT 3
+
+/*! Max BE - Maximum Backoff Exponent */
+extern int linux_CONFIG_MAX_BE;
+#define CONFIG_MAX_BE linux_CONFIG_MAX_BE
+#define CONFIG_MAX_BE_DEFAULT 5
+
+/*! MAC MAX CSMA Backoffs */ 
+extern int linux_CONFIG_MAC_MAX_CSMA_BACKOFFS;
+#define CONFIG_MAC_MAX_CSMA_BACKOFFS linux_CONFIG_MAC_MAX_CSMA_BACKOFFS
+#define CONFIG_MAC_MAX_CSMA_BACKOFFS_DEFAULT 4
+
+/*! macMaxFrameRetries - Maximum Frame Retries */
+extern int linux_CONFIG_MAX_RETRIES;
+#define CONFIG_MAX_RETRIES linux_CONFIG_MAX_RETRIES
+#define CONFIG_MAX_RETRIES_DEFAULT 3
+
+/* Linux variable names for Applciation traffic profile */
+extern int linux_CONFIG_REPORTING_INTERVAL;
+#define CONFIG_REPORTING_INTERVAL         linux_CONFIG_REPORTING_INTERVAL
+
+extern int linux_CONFIG_POLLING_INTERVAL;
+#define CONFIG_POLLING_INTERVAL         linux_CONFIG_POLLING_INTERVAL
+
+extern int linux_TRACKING_DELAY_TIME;
+#define TRACKING_DELAY_TIME         linux_TRACKING_DELAY_TIME
+
+/*! Application traffic profile */
+#if (((CONFIG_PHY_ID >= APIMAC_MRFSK_STD_PHY_ID_BEGIN) && (CONFIG_PHY_ID <= APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN)) || \
+    ((CONFIG_PHY_ID >= APIMAC_GENERIC_US_915_PHY_132) && (CONFIG_PHY_ID <= APIMAC_GENERIC_ETSI_863_PHY_133)))
+/*!
+ Reporting Interval - in milliseconds to be set on connected devices using
+ configuration request messages
+ */
+#define CONFIG_REPORTING_INTERVAL_DEFAULT 90000
+
+/*!
+ Polling interval in milliseconds to be set on connected devices using
+ configuration request messages. Must be greater than or equal to default
+ polling interval set on sensor devices
+ */
+#define CONFIG_POLLING_INTERVAL_DEFAULT 6000
+
+/*!
+ Time interval in ms between tracking message intervals
+ */
+#define TRACKING_DELAY_TIME_DEFAULT 60000
+#else
+/*!
+ Reporting Interval - in milliseconds to be set on connected devices using
+ configuration request messages
+ */
+#define CONFIG_REPORTING_INTERVAL_DEFAULT 300000
+/*!
+ Polling interval in milliseconds to be set on connected devices using
+ configuration request messages. Must be greater than or equal to default
+ polling interval set on sensor devices
+ */
+#define CONFIG_POLLING_INTERVAL_DEFAULT 60000
+/*!
+ Time interval in ms between tracking message intervals
+ */
+#define TRACKING_DELAY_TIME_DEFAULT 300000
+#endif
+
 extern uint8_t linux_CONFIG_SCAN_DURATION;
 #define CONFIG_SCAN_DURATION         linux_CONFIG_SCAN_DURATION
-
+/*! scan duration in seconds */
 #define CONFIG_SCAN_DURATION_DEFAULT 5
 
 extern int linux_CONFIG_RANGE_EXT_MODE;
@@ -217,23 +277,23 @@ extern uint8_t linux_FH_ASYNC_CHANNEL_MASK[APIMAC_154G_CHANNEL_BITMAP_SIZ];
 
 /* FH related config variables */
 /*!
- The number of non sleepy end devices to be supported.
- It is to be noted that the total number of devices supported (sleepy/
- non sleepy) must be less than 50. Stack will allocate memory proportional
+ The number of non sleepy channel hopping end devices to be supported.
+ It is to be noted that the total number of non sleepy devices supported
+  must be less than 50. Stack will allocate memory proportional
  to the number of end devices requested.
  */
-extern int linux_FH_NUM_NON_SLEEPY_NEIGHBORS;
-#define FH_NUM_NON_SLEEPY_NEIGHBORS  linux_FH_NUM_NON_SLEEPY_NEIGHBORS
-#define FH_NUM_NON_SLEEPY_NEIGHBORS_DEFAULT 0
+extern int linux_FH_NUM_NON_SLEEPY_HOPPING_NEIGHBORS;
+#define FH_NUM_NON_SLEEPY_HOPPING_NEIGHBORS  linux_FH_NUM_NON_SLEEPY_HOPPING_NEIGHBORS
+#define FH_NUM_NON_SLEEPY_HOPPING_NEIGHBORS_DEFAULT 5
 /*!
- The number of sleepy end devices to be supported.
- It is to be noted that the total number of devices supported (sleepy/
- non sleepy) must be less than 50. Stack will allocate memory proportional
+ The number of non sleepy fixed channel end devices to be supported.
+ It is to be noted that the total number of non sleepy devices supported
+  must be less than 50. Stack will allocate memory proportional
  to the number of end devices requested.
  */
-extern int linux_FH_NUM_SLEEPY_NEIGHBORS;
-#define FH_NUM_SLEEPY_NEIGHBORS  linux_FH_NUM_SLEEPY_NEIGHBORS
-#define FH_NUM_SLEEPY_NEIGHBORS_DEFAULT 50
+extern int linux_FH_NUM_NON_SLEEPY_FIXED_CHANNEL_NEIGHBORS;
+#define FH_NUM_NON_SLEEPY_FIXED_CHANNEL_NEIGHBORS  linux_FH_NUM_NON_SLEEPY_FIXED_CHANNEL_NEIGHBORS
+#define FH_NUM_NON_SLEEPY_FIXED_CHANNEL_NEIGHBORS_DEFAULT 5
 
 /*!
  Dwell time: The duration for which the collector will
@@ -242,6 +302,19 @@ extern int linux_FH_NUM_SLEEPY_NEIGHBORS;
 extern int linux_CONFIG_DWELL_TIME;
 #define CONFIG_DWELL_TIME            linux_CONFIG_DWELL_TIME
 #define CONFIG_DWELL_TIME_DEFAULT    250
+
+/*!
+ FH Application Broadcast Msg generation interval in ms.
+ Value should be set at least greater than 200 ms,
+ */
+extern int linux_FH_BROADCAST_INTERVAL;
+#define FH_BROADCAST_INTERVAL            linux_FH_BROADCAST_INTERVAL
+#define FH_BROADCAST_INTERVAL_DEFAULT    10000
+
+/*! FH Broadcast dwell time */
+extern int linux_FH_BROADCAST_DWELL_TIME;
+#define FH_BROADCAST_DWELL_TIME            linux_FH_BROADCAST_DWELL_TIME
+#define FH_BROADCAST_DWELL_TIME_DEFAULT    100
 
 /*!
  The minimum trickle timer window for PAN Advertisement,
@@ -258,7 +331,9 @@ extern int linux_CONFIG_TRICKLE_MIN_CLK_DURATION;
 extern int linux_CONFIG_TRICKLE_MAX_CLK_DURATION;
 #define CONFIG_TRICKLE_MAX_CLK_DURATION    linux_CONFIG_TRICKLE_MAX_CLK_DURATION
 
-#if ((CONFIG_PHY_ID_DEFAULT >= APIMAC_MRFSK_STD_PHY_ID_BEGIN) && (CONFIG_PHY_ID_DEFAULT <= APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN))
+#if (((CONFIG_PHY_ID_DEFAULT >= APIMAC_MRFSK_STD_PHY_ID_BEGIN) && (CONFIG_PHY_ID_DEFAULT <= APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN)) || \
+    ((CONFIG_PHY_ID_DEFAULT >= APIMAC_GENERIC_US_915_PHY_132) && (CONFIG_PHY_ID_DEFAULT <= APIMAC_GENERIC_ETSI_863_PHY_133)))
+
 #define CONFIG_TRICKLE_MIN_CLK_DURATION_DEFAULT 3000
 #define CONFIG_TRICKLE_MAX_CLK_DURATION_DEFAULT 6000
 #else
@@ -274,11 +349,6 @@ extern int linux_CONFIG_TRICKLE_MAX_CLK_DURATION;
  */
 #define CONFIG_TRICKLE_MAX_CLK_DURATION_DEFAULT 60000
 #endif
-
-/* default value for PAN Size PIB */
-extern int linux_CONFIG_FH_PAN_SIZE;
-#define CONFIG_FH_PAN_SIZE             linux_CONFIG_FH_PAN_SIZE
-#define CONFIG_FH_PAN_SIZE_DEFAULT     0x0032
 
 /*!
  To enable Doubling of PA/PC trickle time,

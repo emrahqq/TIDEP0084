@@ -68,7 +68,7 @@ fi
 HERE=`pwd`
 
 # Using prebuilt binaries
-BIN_DIR=${HERE}/../prebuilt
+BIN_DIR=${HERE}/../../prebuilt/bin
 # Uncomment line below to use binary built from source
 #BIN_DIR=${HERE}/../collector
 

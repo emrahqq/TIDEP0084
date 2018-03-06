@@ -5,29 +5,29 @@
  @brief TIMAC 2.0 Collector Example Application
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
-
+  
    Copyright (c) 2015, Texas Instruments Incorporated
    All rights reserved.
-
+  
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
-
+  
    *  Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
-
+  
    *  Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-
+  
    *  Neither the name of Texas Instruments Incorporated nor the names of
       its contributors may be used to endorse or promote products derived
       from this software without specific prior written permission.
-
+  
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
    THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -41,7 +41,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 
 /******************************************************************************
@@ -60,7 +60,9 @@
 
 #include "log.h"
 
-#include <oad_protocol.h>
+#include "oad_protocol.h"
+#include "oad_storage.h"
+#include "oad_image_header.h"
 
 /******************************************************************************
  Constants and definitions
@@ -86,60 +88,51 @@
 /* App Config request marker for the MSDU handle */
 #define APP_CONFIG_MSDU_HANDLE 0x40
 
+/* App Broadcast Cmd Msg marker for the MSDU Handle */
+#define APP_BROADCAST_MSDU_HANDLE 0x20
 /* Default configuration frame control */
-#define CONFIG_FRAME_CONTROL (Smsgs_dataFields_tempSensor | \
-                              Smsgs_dataFields_lightSensor | \
-                              Smsgs_dataFields_humiditySensor | \
-                              Smsgs_dataFields_msgStats | \
-                              Smsgs_dataFields_configSettings | \
-                              Smsgs_dataFields_pressureSensor | \
-                              Smsgs_dataFields_motionSensor | \
-                              Smsgs_dataFields_batterySensor | \
-                              Smsgs_dataFields_hallEffectSensor | \
-                              Smsgs_dataFields_fanSensor | \
-                              Smsgs_dataFields_doorLockSensor)
-
-#if ((CONFIG_PHY_ID >= APIMAC_MRFSK_STD_PHY_ID_BEGIN) && (CONFIG_PHY_ID <= APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN))
-/* MAC Indirect Persistent Timeout */
-#define INDIRECT_PERSISTENT_TIME 750
-/* Default configuration reporting interval, in milliseconds */
-#define CONFIG_REPORTING_INTERVAL_DEFAULT 90000
-
-/* Default configuration polling interval, in milliseconds */
-#define CONFIG_POLLING_INTERVAL_DEFAULT 6000
+#define CONFIG_FRAME_CONTROL (0xFFFF)
 
 /* Delay for config request retry in busy network */
-#define CONFIG_DELAY 1000
+#define CONFIG_DELAY 2000
 #define CONFIG_RESPONSE_DELAY 3*CONFIG_DELAY
 /* Tracking timeouts */
 #define TRACKING_CNF_DELAY_TIME 2000 /* in milliseconds */
-#define TRACKING_DELAY_TIME 60000 /* in milliseconds */
-#define TRACKING_TIMEOUT_TIME (CONFIG_POLLING_INTERVAL * 2) /*in milliseconds*/
+#define TRACKING_TIMEOUT_TIME (CONFIG_POLLING_INTERVAL * 3) /*in milliseconds*/
+/* Initial delay before broadcast transmissions are started in FH mode */
+#define BROADCAST_CMD_START_TIME 60000
+
+/* Number of superframe periods to hold a indirect packet at collector for
+Sensor to poll and get the frame*/
+#define BCN_MODE_INDIRECT_PERSISTENT_TIME 3
+
+#if ((CONFIG_PHY_ID >= APIMAC_MRFSK_STD_PHY_ID_BEGIN) && (CONFIG_PHY_ID <= APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN))
+
+/* MAC Indirect Persistent Timeout */
+#define INDIRECT_PERSISTENT_TIME ((5 * 1000 * CONFIG_POLLING_INTERVAL / 2)/ \
+                                  (BASE_SUPER_FRAME_DURATION * \
+                                   SYMBOL_DURATION_50_kbps))
+
+#elif ((CONFIG_PHY_ID >= APIMAC_GENERIC_US_915_PHY_132) && (CONFIG_PHY_ID <= APIMAC_GENERIC_ETSI_863_PHY_133))
+
+/* MAC Indirect Persistent Timeout */
+#define INDIRECT_PERSISTENT_TIME ((5 * 1000 * CONFIG_POLLING_INTERVAL / 2)/ \
+                                  (BASE_SUPER_FRAME_DURATION * \
+                                   SYMBOL_DURATION_200_kbps))
+
+#elif (CONFIG_PHY_ID == APIMAC_PHY_ID_NONE)
+
+/* MAC Indirect Persistent Timeout */
+#define INDIRECT_PERSISTENT_TIME ((5 * 1000 * CONFIG_POLLING_INTERVAL / 2)/ \
+                                  (BASE_SUPER_FRAME_DURATION * \
+                                   SYMBOL_DURATION_250_kbps))
+
 #else
-/* MAC Indirect Persistent Timeout
- * This is in units of aBaseSuperframeDuration.
- * It will be scaled accordingly for beacon mode.
- * */
-#define INDIRECT_PERSISTENT_TIME 3750
-/* Default configuration reporting interval, in milliseconds */
-#define CONFIG_REPORTING_INTERVAL_DEFAULT 300000
-
-/* Default configuration polling interval, in milliseconds */
-#define CONFIG_POLLING_INTERVAL_DEFAULT 60000
-
-/* Delay for config request retry in busy network */
-#define CONFIG_DELAY 5000
-#define CONFIG_RESPONSE_DELAY 3*CONFIG_DELAY
-/* Tracking timeouts */
-#define TRACKING_CNF_DELAY_TIME 10000 /* in milliseconds */
-#define TRACKING_DELAY_TIME 300000 /* in milliseconds */
-#define TRACKING_TIMEOUT_TIME (CONFIG_POLLING_INTERVAL_DEFAULT * 2) /*in milliseconds*/
+/* MAC Indirect Persistent Timeout */
+#define INDIRECT_PERSISTENT_TIME ((5 * 1000 * CONFIG_POLLING_INTERVAL / 2)/ \
+                                  (BASE_SUPER_FRAME_DURATION * \
+                                    SYMBOL_DURATION_LRM))
 #endif
-
-int linux_CONFIG_REPORTING_INTERVAL = CONFIG_REPORTING_INTERVAL_DEFAULT;
-#define CONFIG_REPORTING_INTERVAL linux_CONFIG_REPORTING_INTERVAL
-int linux_CONFIG_POLLING_INTERVAL = CONFIG_POLLING_INTERVAL_DEFAULT;
-#define CONFIG_POLLING_INTERVAL linux_CONFIG_POLLING_INTERVAL
 
 /* Assoc Table (CLLC) status settings */
 #define ASSOC_CONFIG_SENT       0x0100    /* Config Req sent */
@@ -225,6 +218,7 @@ static bool sendMsg(Smsgs_cmdIds_t type, uint16_t dstShortAddr, bool rxOnIdle,
                     uint8_t *pData);
 static void generateConfigRequests(void);
 static void generateTrackingRequests(void);
+static void generateBroadcastCmd(void);
 static void sendTrackingRequest(Cllc_associated_devices_t *pDev);
 static void commStatusIndCB(ApiMac_mlmeCommStatusInd_t *pCommStatusInd);
 static void pollIndCB(ApiMac_mlmePollInd_t *pPollInd);
@@ -343,19 +337,37 @@ void Collector_init(void)
     /* Initialize the platform specific functions */
     Csf_init(sem);
 
+    ApiMac_mlmeSetReqUint8(ApiMac_attribute_phyCurrentDescriptorId,
+                           (uint8_t)CONFIG_PHY_ID);
+
+    ApiMac_mlmeSetReqUint8(ApiMac_attribute_channelPage,
+                           (uint8_t)CONFIG_CHANNEL_PAGE);
+
     /* Set the indirect persistent timeout */
     if(CONFIG_MAC_BEACON_ORDER != NON_BEACON_ORDER)
     {
-        ApiMac_mlmeSetReqUint16(ApiMac_attribute_transactionPersistenceTime, (INDIRECT_PERSISTENT_TIME >> CONFIG_MAC_BEACON_ORDER));
+        ApiMac_mlmeSetReqUint16(ApiMac_attribute_transactionPersistenceTime,
+            BCN_MODE_INDIRECT_PERSISTENT_TIME);
     }
     else
     {
-        ApiMac_mlmeSetReqUint16(ApiMac_attribute_transactionPersistenceTime, INDIRECT_PERSISTENT_TIME);
+        ApiMac_mlmeSetReqUint16(ApiMac_attribute_transactionPersistenceTime,
+            INDIRECT_PERSISTENT_TIME);
     }
-
     ApiMac_mlmeSetReqUint8(ApiMac_attribute_phyTransmitPowerSigned,
                            (uint8_t)CONFIG_TRANSMIT_POWER);
-
+    /* Set Min BE */
+    ApiMac_mlmeSetReqUint8(ApiMac_attribute_backoffExponent,
+                              (uint8_t)CONFIG_MIN_BE);
+    /* Set Max BE */
+    ApiMac_mlmeSetReqUint8(ApiMac_attribute_maxBackoffExponent,
+                              (uint8_t)CONFIG_MAX_BE);
+    /* Set MAC MAX CSMA Backoffs */
+    ApiMac_mlmeSetReqUint8(ApiMac_attribute_maxCsmaBackoffs,
+                              (uint8_t)CONFIG_MAC_MAX_CSMA_BACKOFFS);
+    /* Set MAC MAX Frame Retries */
+    ApiMac_mlmeSetReqUint8(ApiMac_attribute_maxFrameRetries,
+                              (uint8_t)CONFIG_MAX_RETRIES);
 #ifdef FCS_TYPE16
     /* Set the fcs type */
     ApiMac_mlmeSetReqBool(ApiMac_attribute_fcsType,
@@ -364,6 +376,12 @@ void Collector_init(void)
 
     /* Initialize the app clocks */
     initializeClocks();
+    if(CONFIG_FH_ENABLE && (FH_BROADCAST_DWELL_TIME > 0))
+    {
+        /* Start broadcast frame transmissions in FH mode if broadcast dwell time
+         * is greater than zero */
+        Csf_setBroadcastClock(BROADCAST_CMD_START_TIME);
+    }
 
     if(CONFIG_AUTO_START)
     {
@@ -417,6 +435,21 @@ void Collector_process(void)
 
         /* Clear the event */
         Util_clearEvent(&Collector_events, COLLECTOR_CONFIG_EVT);
+    }
+
+    /*
+     Collector generate a broadcast command message for FH mode
+     */
+    if(Collector_events & COLLECTOR_BROADCAST_TIMEOUT_EVT)
+    {
+        /* Clear the event */
+        Util_clearEvent(&Collector_events, COLLECTOR_BROADCAST_TIMEOUT_EVT);
+        if(FH_BROADCAST_INTERVAL > 0 && (!CERTIFICATION_TEST_MODE))
+        {
+            generateBroadcastCmd();
+            /* set clock for next broadcast command */
+            Csf_setBroadcastClock(FH_BROADCAST_INTERVAL);
+        }
     }
 
     /* Process LLC Events */
@@ -556,7 +589,7 @@ uint32_t Collector_updateFwList(char *new_oad_file)
     uint32_t oad_file_id;
     bool found = false;
 
-    LOG_printf( LOG_ALWAYS, "Collector_updateFwList: new oad file: %s\n",
+    LOG_printf( LOG_DBG_COLLECTOR, "Collector_updateFwList: new oad file: %s\n",
                           new_oad_file);
 
     /* Does OAD file exist */
@@ -564,7 +597,7 @@ uint32_t Collector_updateFwList(char *new_oad_file)
     {
         if(strcmp(new_oad_file, oad_file_list[oad_file_idx].oad_file) == 0)
         {
-            LOG_printf( LOG_ALWAYS, "Collector_updateFwList: found ID: %d\n",
+            LOG_printf( LOG_DBG_COLLECTOR, "Collector_updateFwList: found ID: %d\n",
                           oad_file_list[oad_file_idx].oad_file_id);
             oad_file_id = oad_file_list[oad_file_idx].oad_file_id;
             found = true;
@@ -582,7 +615,7 @@ uint32_t Collector_updateFwList(char *new_oad_file)
         oad_file_list[latest_oad_file_idx].oad_file_id = oad_file_id;
         strncpy(oad_file_list[latest_oad_file_idx].oad_file, new_oad_file, 256);
 
-        LOG_printf( LOG_ALWAYS, "Collector_updateFwList: Added %s, ID %d\n",
+        LOG_printf( LOG_DBG_COLLECTOR, "Collector_updateFwList: Added %s, ID %d\n",
               oad_file_list[latest_oad_file_idx].oad_file,
               oad_file_list[latest_oad_file_idx].oad_file_id);
 
@@ -623,7 +656,7 @@ Collector_status_t Collector_sendFwVersionRequest(ApiMac_sAddr_t *pDstAddr)
 Collector_status_t Collector_startFwUpdate(ApiMac_sAddr_t *pDstAddr, uint32_t oad_file_id)
 {
     Collector_status_t status = Collector_status_invalid_state;
-    uint8_t imgInfoData[16];
+    uint8_t imgInfoData[OADProtocol_AGAMA_IMAGE_HDR_LEN];
     uint32_t oad_file_idx;
     FILE *oadFile;
 
@@ -631,7 +664,7 @@ Collector_status_t Collector_startFwUpdate(ApiMac_sAddr_t *pDstAddr, uint32_t oa
     {
         if(oad_file_list[oad_file_idx].oad_file_id == oad_file_id)
         {
-          LOG_printf( LOG_ALWAYS, "Collector_startFwUpdate: opening file: %s\n",
+          LOG_printf( LOG_DBG_COLLECTOR, "Collector_startFwUpdate: opening file: %s\n",
                           oad_file_list[oad_file_idx].oad_file);
 
           oadFile = fopen(oad_file_list[oad_file_idx].oad_file, "r");
@@ -641,17 +674,74 @@ Collector_status_t Collector_startFwUpdate(ApiMac_sAddr_t *pDstAddr, uint32_t oa
 
     if(oadFile)
     {
+        LOG_printf( LOG_DBG_COLLECTOR, "Collector_startFwUpdate: opened file....\n");
+
         fseek(oadFile, IMG_HDR_ADDR, SEEK_SET);
 
-        if(fread(imgInfoData, 1, 16, oadFile) == 16)
+        if(fread(imgInfoData, 1, OADProtocol_AGAMA_IMAGE_HDR_LEN, oadFile) == OADProtocol_AGAMA_IMAGE_HDR_LEN)
         {
-            LOG_printf( LOG_ALWAYS, "Collector_startFwUpdate: sending ImgIdentifyReq\n");
+            //check if it is a unified OAD binary
+            OADStorage_imgIdentifyPld_t imgIdPld;
+	    
 
-            oadBNumBlocks = ((imgInfoData[6]) | (imgInfoData[7] << 8) ) / (OAD_BLOCK_SIZE / 4);
+	    imgHdr_t* pImgHdr = (imgHdr_t*) imgInfoData;
 
-            if(OADProtocol_sendImgIdentifyReq((void*) pDstAddr, oad_file_id, imgInfoData) == OADProtocol_Status_Success)
+            if((strncmp((const char*) pImgHdr->fixedHdr.imgID, CC26X2_OAD_IMG_ID_VAL, 8) == 0)
+				|| (strncmp((const char*) pImgHdr->fixedHdr.imgID, CC13X2_OAD_IMG_ID_VAL, 8) == 0))
             {
-                status = Collector_status_success;
+                LOG_printf( LOG_DBG_COLLECTOR, "Collector_startFwUpdate: unified OAD image\n");
+				
+                //copy image indentify payload
+                memcpy(imgIdPld.imgID, pImgHdr->fixedHdr.imgID, 8);
+                imgIdPld.bimVer = pImgHdr->fixedHdr.bimVer;
+                imgIdPld.metaVer = pImgHdr->fixedHdr.metaVer;
+                imgIdPld.imgCpStat = pImgHdr->fixedHdr.imgCpStat;
+                imgIdPld.crcStat = pImgHdr->fixedHdr.crcStat;
+                imgIdPld.imgType = pImgHdr->fixedHdr.imgType;
+                imgIdPld.imgNo = pImgHdr->fixedHdr.imgNo;
+                imgIdPld.len = pImgHdr->fixedHdr.len;
+                memcpy(imgIdPld.softVer, pImgHdr->fixedHdr.softVer, 4);
+
+                LOG_printf( LOG_DBG_COLLECTOR, "Collector_startFwUpdate: sending ImgIdentifyReq, Img Len %x\n", pImgHdr->fixedHdr.len);
+                
+				oadBNumBlocks = pImgHdr->fixedHdr.len / OAD_BLOCK_SIZE;
+
+                if(pImgHdr->fixedHdr.len % OAD_BLOCK_SIZE)
+                {
+                    //there are some remaining bytes in an additional block
+                    oadBNumBlocks++;
+                }
+
+		if(OADProtocol_sendImgIdentifyReq((void*) pDstAddr, oad_file_id, (uint8_t*) &imgIdPld) == OADProtocol_Status_Success)
+                {
+                    status = Collector_status_success;
+                }
+            }
+            else
+            {
+				uint32_t oadImgLen = ((imgInfoData[6]) | (imgInfoData[7] << 8));
+				
+                LOG_printf( LOG_DBG_COLLECTOR, "Collector_startFwUpdate: Not a unified OAD image\n");
+                LOG_printf( LOG_DBG_COLLECTOR, "Collector_startFwUpdate: sending ImgIdentifyReq, Img Len %x\n", oadImgLen);
+
+                oadBNumBlocks =  oadImgLen / (OAD_BLOCK_SIZE / 4);
+
+                if(oadImgLen % OAD_BLOCK_SIZE)
+                {
+                    //there are some remaining bytes in an additional block
+                    oadBNumBlocks++;
+                }
+
+                if(oadImgLen % OAD_BLOCK_SIZE)
+                {
+                    //there are some remaining bytes in an additional block
+                    oadBNumBlocks++;
+                }
+
+                if(OADProtocol_sendImgIdentifyReq((void*) pDstAddr, oad_file_id, imgInfoData) == OADProtocol_Status_Success)
+                {
+                    status = Collector_status_success;
+                }
             }
         }
 
@@ -659,7 +749,7 @@ Collector_status_t Collector_startFwUpdate(ApiMac_sAddr_t *pDstAddr, uint32_t oa
     }
     else
     {
-        LOG_printf( LOG_ALWAYS, "Collector_startFwUpdate: could not open file: %s\n",
+        LOG_printf( LOG_DBG_COLLECTOR, "Collector_startFwUpdate: could not open file: %s\n",
                         oad_file_list[oad_file_idx].oad_file);
         status = Collector_status_invalid_file;
     }
@@ -696,6 +786,7 @@ static void initializeClocks(void)
     /* Initialize the tracking clock */
     Csf_initializeTrackingClock();
     Csf_initializeConfigClock();
+    Csf_initializeBroadcastClock();
 }
 
 /*!
@@ -838,6 +929,13 @@ static void dataCnfCB(ApiMac_mcpsDataCnf_t *pDataCnf)
                 Collector_statistics.configReqRequestSent++;
             }
         }
+        else if(pDataCnf->msduHandle & APP_BROADCAST_MSDU_HANDLE)
+        {
+            if(pDataCnf->status == ApiMac_status_success)
+            {
+                Collector_statistics.broadcastMsgSentCnt++;
+            }
+        }
         else
         {
             /* Tracking Request */
@@ -888,10 +986,12 @@ static void dataCnfCB(ApiMac_mcpsDataCnf_t *pDataCnf)
  */
 static void dataIndCB(ApiMac_mcpsDataInd_t *pDataInd)
 {
+    int i;
+
     if((pDataInd != NULL) && (pDataInd->msdu.p != NULL)
        && (pDataInd->msdu.len > 0))
     {
-        Smsgs_cmdIds_t cmdId = (Smsgs_cmdIds_t)*(pDataInd->msdu.p);
+      Smsgs_cmdIds_t cmdId = (Smsgs_cmdIds_t)*(pDataInd->msdu.p);
 
 #ifdef FEATURE_MAC_SECURITY
         if(Cllc_securityCheck(&(pDataInd->sec)) == false)
@@ -910,6 +1010,24 @@ static void dataIndCB(ApiMac_mcpsDataInd_t *pDataInd)
                 /* Switch to the short address for internal tracking */
                 pDataInd->srcAddr.addrMode = ApiMac_addrType_short;
                 pDataInd->srcAddr.addr.shortAddr = shortAddr;
+
+                LOG_printf(LOG_DBG_COLLECTOR_RAW,"Sensor MSG Short: 0x%04x\
+                    Extended: %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n Data Len: %d Data: ",
+                    shortAddr,
+                    pDataInd->srcAddr.addr.extAddr[7],
+                    pDataInd->srcAddr.addr.extAddr[6],
+                    pDataInd->srcAddr.addr.extAddr[5],
+                    pDataInd->srcAddr.addr.extAddr[4],
+                    pDataInd->srcAddr.addr.extAddr[3],
+                    pDataInd->srcAddr.addr.extAddr[2],
+                    pDataInd->srcAddr.addr.extAddr[1],
+                    pDataInd->srcAddr.addr.extAddr[0], pDataInd->msdu.len);
+
+                for (i = 0; i < pDataInd->msdu.len; i++)
+                {
+                  LOG_printf(LOG_DBG_COLLECTOR_RAW, "%02X ", pDataInd->msdu.p[i]);
+                }
+                LOG_printf(LOG_DBG_COLLECTOR_RAW, "\n");
             }
             else
             {
@@ -917,11 +1035,35 @@ static void dataIndCB(ApiMac_mcpsDataInd_t *pDataInd)
                 return;
             }
         }
+        /* Log using short address */
+        else {
+            LOG_printf(LOG_DBG_COLLECTOR_RAW,"Sensor MSG Short: 0x%04x Data Len: %d Data: ",
+             pDataInd->srcAddr.addr.shortAddr, pDataInd->msdu.len);
+
+            for (i = 0; i < pDataInd->msdu.len; i++)
+            {
+              LOG_printf(LOG_DBG_COLLECTOR_RAW, "%02X ", pDataInd->msdu.p[i]);
+            }
+            LOG_printf(LOG_DBG_COLLECTOR_RAW, "\n");
+        }
 
         switch(cmdId)
         {
             case Smsgs_cmdIds_configRsp:
+#ifndef PROCESS_JS
                 processConfigResponse(pDataInd);
+#else
+                Collector_statistics.configResponseReceived++;
+                Cllc_associated_devices_t *pDev = findDevice(&pDataInd->srcAddr);
+                if (pDev != NULL)
+                {
+                    /* Clear the sent flag and set the response flag */
+                    pDev->status &= ~ASSOC_CONFIG_SENT;
+                    pDev->status |= ASSOC_CONFIG_RSP;
+                }
+                Util_setEvent(&Collector_events, COLLECTOR_CONFIG_EVT);
+                Csf_deviceRawDataUpdate(pDataInd);
+#endif
                 break;
 
             case Smsgs_cmdIds_trackingRsp:
@@ -933,7 +1075,13 @@ static void dataIndCB(ApiMac_mcpsDataInd_t *pDataInd)
                 break;
 
             case Smsgs_cmdIds_sensorData:
+#ifndef PROCESS_JS
                 processSensorData(pDataInd);
+#else
+                Collector_statistics.sensorMessagesReceived++;
+                processDataRetry(&(pDataInd->srcAddr));
+                Csf_deviceRawDataUpdate(pDataInd);
+#endif
                 break;
 
             case Smsgs_cmdIds_rampdata:
@@ -946,6 +1094,9 @@ static void dataIndCB(ApiMac_mcpsDataInd_t *pDataInd)
 
             default:
                 /* Should not receive other messages */
+#ifdef PROCESS_JS
+                Csf_deviceRawDataUpdate(pDataInd);
+#endif
                 break;
         }
     }
@@ -963,7 +1114,6 @@ static void processStartEvent(void)
     /* See if there is existing network information */
     if(Csf_getNetworkInformation(&netInfo))
     {
-        Llc_deviceListItem_t *pDevList = NULL;
         uint16_t numDevices = 0;
 
 #ifdef FEATURE_MAC_SECURITY
@@ -972,43 +1122,8 @@ static void processStartEvent(void)
 #endif /* FEATURE_MAC_SECURITY */
 
         numDevices = Csf_getNumDeviceListEntries();
-        if (numDevices > 0)
-        {
-            /* Allocate enough memory for all know devices */
-            pDevList = (Llc_deviceListItem_t *)Csf_malloc(
-                            sizeof(Llc_deviceListItem_t) * numDevices);
-            if(pDevList)
-            {
-                uint8_t i = 0;
-
-                /* Use a temp pointer to cycle through the list */
-                Llc_deviceListItem_t *pItem = pDevList;
-                for(i = 0; i < numDevices; i++, pItem++)
-                {
-                    Csf_getDeviceItem(i, pItem);
-
-#ifdef FEATURE_MAC_SECURITY
-                    /* Add device to security device table */
-                    Cllc_addSecDevice(pItem->devInfo.panID,
-                                      pItem->devInfo.shortAddress,
-                                      &pItem->devInfo.extAddress,
-                                      pItem->rxFrameCounter);
-#endif /* FEATURE_MAC_SECURITY */
-                }
-            }
-            else
-            {
-                numDevices = 0;
-            }
-        }
-
         /* Restore with the network and device information */
-        Cllc_restoreNetwork(&netInfo, (uint8_t)numDevices, pDevList);
-
-        if (pDevList)
-        {
-            Csf_free(pDevList);
-        }
+        Cllc_restoreNetwork(&netInfo, (uint8_t)numDevices, NULL);
 
         restarted = true;
     }
@@ -1057,7 +1172,6 @@ static void processConfigResponse(ApiMac_mcpsDataInd_t *pDataInd)
 
         configRsp.pollingInterval = Util_buildUint32(pBuf[0], pBuf[1], pBuf[2],
                                                      pBuf[3]);
-
         pDev = findDevice(&pDataInd->srcAddr);
         if(pDev != NULL)
         {
@@ -1065,7 +1179,6 @@ static void processConfigResponse(ApiMac_mcpsDataInd_t *pDataInd)
             pDev->status &= ~ASSOC_CONFIG_SENT;
             pDev->status |= ASSOC_CONFIG_RSP;
         }
-
         /* Report the config response */
         Csf_deviceConfigUpdate(&pDataInd->srcAddr, pDataInd->rssi,
                                &configRsp);
@@ -1153,6 +1266,7 @@ static void processSensorData(ApiMac_mcpsDataInd_t *pDataInd)
     sensorData.frameControl = Util_buildUint16(pBuf[0], pBuf[1]);
     pBuf += 2;
 
+    /* Parse data in order of frameControl mask, starting with LSB */
     if(sensorData.frameControl & Smsgs_dataFields_tempSensor)
     {
         sensorData.tempSensor.ambienceTemp = Util_buildUint16(pBuf[0], pBuf[1]);
@@ -1235,6 +1349,12 @@ static void processSensorData(ApiMac_mcpsDataInd_t *pDataInd)
         sensorData.msgStats.interimDelay = Util_buildUint16(pBuf[0],
                                                             pBuf[1]);
         pBuf += 2;
+        sensorData.msgStats.numBroadcastMsgRcvd = Util_buildUint16(pBuf[0],
+                                                                   pBuf[1]);
+        pBuf += 2;
+        sensorData.msgStats.numBroadcastMsglost = Util_buildUint16(pBuf[0],
+                                                                   pBuf[1]);
+        pBuf += 2;
     }
 
     if(sensorData.frameControl & Smsgs_dataFields_configSettings)
@@ -1248,52 +1368,6 @@ static void processSensorData(ApiMac_mcpsDataInd_t *pDataInd)
                                                                      pBuf[1],
                                                                      pBuf[2],
                                                                      pBuf[3]);
-        pBuf += 4;
-    }
-
-    if(sensorData.frameControl & Smsgs_dataFields_pressureSensor)
-    {
-        sensorData.pressureSensor.pressureValue = Util_buildUint32(pBuf[0],
-                                                                    pBuf[1],
-                                                                    pBuf[2],
-                                                                    pBuf[3]);
-        pBuf += 4;
-        sensorData.pressureSensor.tempValue =  Util_buildUint32(pBuf[0],
-                                                                pBuf[1],
-                                                                pBuf[2],
-                                                                pBuf[3]);
-        pBuf += 4;
-    }
-
-    if(sensorData.frameControl & Smsgs_dataFields_motionSensor)
-    {
-      sensorData.motionSensor.isMotion = *pBuf++;
-    }
-
-    if(sensorData.frameControl & Smsgs_dataFields_batterySensor)
-    {
-
-      sensorData.batterySensor.voltageValue = Util_buildUint32(pBuf[0],
-                                                                     pBuf[1],
-                                                                     pBuf[2],
-                                                                     pBuf[3]);
-      pBuf +=4;
-    }
-
-    if(sensorData.frameControl & Smsgs_dataFields_hallEffectSensor)
-    {
-      sensorData.hallEffectSensor.isOpen = *pBuf++;
-      sensorData.hallEffectSensor.isTampered = *pBuf++;
-    }
-
-    if(sensorData.frameControl & Smsgs_dataFields_fanSensor)
-    {
-      sensorData.fanSensor.fanSpeed = *pBuf++;
-    }
-
-    if(sensorData.frameControl & Smsgs_dataFields_doorLockSensor)
-    {
-      sensorData.doorLockSensor.isLocked = *pBuf++;
     }
 
     Collector_statistics.sensorMessagesReceived++;
@@ -1419,6 +1493,10 @@ static uint8_t getMsduHandle(Smsgs_cmdIds_t msgType)
     {
         msduHandle |= APP_CONFIG_MSDU_HANDLE;
     }
+    else if(msgType == Smgs_cmdIds_broadcastCtrlMsg)
+    {
+        msduHandle |= APP_BROADCAST_MSDU_HANDLE;
+    }
 
     return (msduHandle);
 }
@@ -1447,7 +1525,7 @@ static bool sendMsg(Smsgs_cmdIds_t type, uint16_t dstShortAddr, bool rxOnIdle,
     dataReq.dstAddr.addr.shortAddr = dstShortAddr;
     dataReq.srcAddrMode = ApiMac_addrType_short;
 
-    if(fhEnabled && !LRM_MODE)
+    if(fhEnabled && rxOnIdle)
     {
         Llc_deviceListItem_t item;
 
@@ -1494,6 +1572,49 @@ static bool sendMsg(Smsgs_cmdIds_t type, uint16_t dstShortAddr, bool rxOnIdle,
     {
         return (true);
     }
+}
+
+/*!
+ * @brief      Send MAC broadcast data request. Only supported in FH mode.
+ *
+ * @param      type - message type
+ * @param      len - length of payload
+ * @param      pData - pointer to the buffer
+ */
+static void sendBroadcastMsg(Smsgs_cmdIds_t type, uint16_t len,
+                    uint8_t *pData)
+{
+    ApiMac_mcpsDataReq_t dataReq;
+
+    /* Only supported for FH mode */
+    if(!fhEnabled)
+    {
+        return;
+    }
+    /* Fill the data request field */
+    memset(&dataReq, 0, sizeof(ApiMac_mcpsDataReq_t));
+
+    dataReq.dstAddr.addrMode = ApiMac_addrType_none;
+    dataReq.srcAddrMode = ApiMac_addrType_short;
+
+    dataReq.dstPanId = devicePanId;
+
+    dataReq.msduHandle = getMsduHandle(type);
+
+    dataReq.txOptions.ack = false;
+    dataReq.txOptions.indirect = false;
+
+
+    dataReq.msdu.len = len;
+    dataReq.msdu.p = pData;
+
+#ifdef FEATURE_MAC_SECURITY
+    /* Fill in the appropriate security fields */
+    Cllc_securityFill(&dataReq.sec);
+#endif /* FEATURE_MAC_SECURITY */
+
+    /* Send the message */
+    ApiMac_mcpsDataReq(&dataReq);
 }
 
 /*!
@@ -1717,6 +1838,23 @@ static void generateTrackingRequests(void)
 }
 
 /*!
+ * @brief      Generate Broadcast Cmd Request Message
+ */
+static void generateBroadcastCmd(void)
+{
+    uint8_t buffer[SMSGS_BROADCAST_CMD_LENGTH];
+    uint8_t *pBuf = buffer;
+
+    /* Build the message */
+    *pBuf++ = (uint8_t)Smgs_cmdIds_broadcastCtrlMsg;
+    *pBuf++ = Util_loUint16(Collector_statistics.broadcastMsgSentCnt);
+    *pBuf++ = Util_hiUint16(Collector_statistics.broadcastMsgSentCnt);
+
+    sendBroadcastMsg(Smgs_cmdIds_broadcastCtrlMsg, SMSGS_BROADCAST_CMD_LENGTH,
+                     buffer);
+}
+
+/*!
  * @brief      Generate Tracking Requests for a device
  *
  * @param      pDev - pointer to the device's associate device table entry
@@ -1877,7 +2015,7 @@ static void processConfigRetry(void)
  */
 static void oadFwVersionRspCb(void* pSrcAddr, char *fwVersionStr)
 {
-    LOG_printf( LOG_ALWAYS, "oadFwVersionRspCb from %x\n", ((ApiMac_sAddr_t*)pSrcAddr)->addr.shortAddr);
+    LOG_printf( LOG_DBG_COLLECTOR, "oadFwVersionRspCb from %x\n", ((ApiMac_sAddr_t*)pSrcAddr)->addr.shortAddr);
     Csf_deviceSensorFwVerUpdate(((ApiMac_sAddr_t*)pSrcAddr)->addr.shortAddr, fwVersionStr);
 }
 
@@ -1896,7 +2034,7 @@ static void oadBlockReqCb(void* pSrcAddr, uint8_t imgId, uint16_t blockNum, uint
     uint32_t oad_file_idx;
     FILE *oadFile = NULL;
 
-    LOG_printf( LOG_ALWAYS, "oadBlockReqCb[%d:%x] from %x\n", imgId, blockNum, ((ApiMac_sAddr_t*)pSrcAddr)->addr.shortAddr);
+    LOG_printf( LOG_DBG_COLLECTOR, "oadBlockReqCb[%d:%x] from %x\n", imgId, blockNum, ((ApiMac_sAddr_t*)pSrcAddr)->addr.shortAddr);
 
     Csf_deviceSensorOadUpdate( ((ApiMac_sAddr_t*)pSrcAddr)->addr.shortAddr, imgId, blockNum, oadBNumBlocks);
 
@@ -1904,7 +2042,7 @@ static void oadBlockReqCb(void* pSrcAddr, uint8_t imgId, uint16_t blockNum, uint
     {
         if(oad_file_list[oad_file_idx].oad_file_id == imgId)
         {
-            LOG_printf( LOG_ALWAYS, "oadBlockReqCb: openinging %d:%d:%s\n", oad_file_idx,
+            LOG_printf( LOG_DBG_COLLECTOR, "oadBlockReqCb: openinging %d:%d:%s\n", oad_file_idx,
                                     oad_file_list[oad_file_idx].oad_file_id,
                                     oad_file_list[oad_file_idx].oad_file);
 
@@ -1919,7 +2057,7 @@ static void oadBlockReqCb(void* pSrcAddr, uint8_t imgId, uint16_t blockNum, uint
         fseek(oadFile, (blockNum * OAD_BLOCK_SIZE), SEEK_SET);
         byteRead = (int) fread(blockBuf, 1, OAD_BLOCK_SIZE, oadFile);
 
-        LOG_printf( LOG_ALWAYS, "oadBlockReqCb: read %d bytes from position %d of %p\n",
+        LOG_printf( LOG_DBG_COLLECTOR, "oadBlockReqCb: read %d bytes from position %d of %p\n",
                                                     byteRead, (blockNum * OAD_BLOCK_SIZE), oadFile);
 
         if(byteRead == 0)
@@ -1933,7 +2071,7 @@ static void oadBlockReqCb(void* pSrcAddr, uint8_t imgId, uint16_t blockNum, uint
     }
     else
     {
-      LOG_printf( LOG_ALWAYS, "imgId %d file not found\n", imgId);
+      LOG_printf( LOG_DBG_COLLECTOR, "imgId %d file not found\n", imgId);
     }
 }
 
@@ -1986,6 +2124,44 @@ static OADProtocol_Status_t oadRadioAccessPacketSend(void* pDstAddr, uint8_t *pM
     }
 
     return status;
+}
+
+/*!
+ Build and send the buzzer ctrl message to a device.
+
+ Public function defined in collector.h
+ */
+Collector_status_t Collector_sendBuzzerCtrlRequest(ApiMac_sAddr_t *pDstAddr)
+{
+    Collector_status_t status = Collector_status_invalid_state;
+
+    /* Are we in the right state? */
+    if (cllcState >= Cllc_states_started)
+    {
+        Llc_deviceListItem_t item;
+
+        /* Is the device a known device? */
+        if (Csf_getDevice(pDstAddr, &item))
+        {
+            uint8_t buffer[SMSGS_BUZZER_CTRL_REQUEST_MSG_LEN];
+
+            /* Build the message */
+            buffer[0] = (uint8_t)Smsgs_cmdIds_buzzerCtrlReq;
+
+            sendMsg(Smsgs_cmdIds_buzzerCtrlReq, item.devInfo.shortAddress,
+                    item.capInfo.rxOnWhenIdle,
+                    SMSGS_BUZZER_CTRL_REQUEST_MSG_LEN,
+                    buffer);
+
+            status = Collector_status_success;
+        }
+        else
+        {
+            status = Collector_status_deviceNotFound;
+        }
+    }
+
+    return (status);
 }
 /*
  *  ========================================

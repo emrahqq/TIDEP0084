@@ -5,7 +5,7 @@
  @brief Logical Link Controller shared definitions
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -41,7 +41,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 #ifndef LLC_H
 #define LLC_H

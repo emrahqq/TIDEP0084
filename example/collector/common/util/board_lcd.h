@@ -5,7 +5,7 @@
  @brief This file contains the LCD Service definitions and prototypes.
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -41,7 +41,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 #ifndef BOARD_LCD_H
 #define BOARD_LCD_H
@@ -71,6 +71,10 @@ extern "C"
  * \ingroup BoardLCD
  * @{
  */
+
+#if defined(BOARD_DISPLAY_USE_LCD) && defined(BOARD_DISPLAY_USE_UART)
+#error "can't enable both BOARD_DISPLAY_USE_LCD and BOARD_DISPLAY_USE_UART"
+#endif
 
 /*! LCD macros */
 #if defined(BOARD_DISPLAY_USE_LCD) || defined(BOARD_DISPLAY_USE_UART)

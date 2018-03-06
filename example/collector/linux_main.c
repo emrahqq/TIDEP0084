@@ -4,7 +4,7 @@
  @brief TIMAC 2.0 API this is the "main" file for the linux collector app
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -40,7 +40,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 
 #include "compiler.h"
@@ -66,8 +66,8 @@
 #include "config.h"
 
 
-int linux_FH_NUM_NON_SLEEPY_NEIGHBORS = FH_NUM_NON_SLEEPY_NEIGHBORS_DEFAULT;
-int linux_FH_NUM_SLEEPY_NEIGHBORS = FH_NUM_SLEEPY_NEIGHBORS_DEFAULT;
+int linux_FH_NUM_NON_SLEEPY_HOPPING_NEIGHBORS = FH_NUM_NON_SLEEPY_HOPPING_NEIGHBORS_DEFAULT;
+int linux_FH_NUM_NON_SLEEPY_FIXED_CHANNEL_NEIGHBORS = FH_NUM_NON_SLEEPY_FIXED_CHANNEL_NEIGHBORS_DEFAULT;
 
 int linux_CONFIG_TRANSMIT_POWER = CONFIG_TRANSMIT_POWER_DEFAULT;
 int linux_CERTIFICATION_TEST_MODE = CERTIFICATION_TEST_MODE_DEFAULT;
@@ -77,15 +77,16 @@ int linux_CONFIG_CHANNEL_PAGE = CONFIG_CHANNEL_PAGE_DEFAULT;
 uint8_t linux_CONFIG_FH_CHANNEL_MASK[APIMAC_154G_CHANNEL_BITMAP_SIZ]= CONFIG_FH_CHANNEL_MASK_DEFAULT;
 uint8_t linux_CONFIG_CHANNEL_MASK[APIMAC_154G_CHANNEL_BITMAP_SIZ] = CONFIG_CHANNEL_MASK_DEFAULT;
 uint8_t linux_FH_ASYNC_CHANNEL_MASK[APIMAC_154G_CHANNEL_BITMAP_SIZ] = FH_ASYNC_CHANNEL_MASK_DEFAULT;
-
-uint8_t linux_CONFIG_LINKQUALITY   = CONFIG_LINKQUALITY_DEFAULT;
-uint8_t linux_CONFIG_PERCENTFILTER = CONFIG_PERCENTFILTER_DEFAULT;
+int linux_CONFIG_REPORTING_INTERVAL = CONFIG_REPORTING_INTERVAL_DEFAULT;
+int linux_CONFIG_POLLING_INTERVAL = CONFIG_POLLING_INTERVAL_DEFAULT;
+int linux_TRACKING_DELAY_TIME = TRACKING_DELAY_TIME_DEFAULT;
 uint8_t linux_CONFIG_SCAN_DURATION = CONFIG_SCAN_DURATION_DEFAULT;
 char linux_CONFIG_FH_NETNAME[32] = CONFIG_FH_NETNAME_DEFAULT;
 int linux_CONFIG_DWELL_TIME = CONFIG_DWELL_TIME_DEFAULT;
+int linux_FH_BROADCAST_INTERVAL = FH_BROADCAST_INTERVAL_DEFAULT;
+int linux_FH_BROADCAST_DWELL_TIME = FH_BROADCAST_DWELL_TIME_DEFAULT;
 int linux_CONFIG_TRICKLE_MIN_CLK_DURATION = CONFIG_TRICKLE_MIN_CLK_DURATION_DEFAULT;
 int linux_CONFIG_TRICKLE_MAX_CLK_DURATION = CONFIG_TRICKLE_MAX_CLK_DURATION_DEFAULT;
-int linux_CONFIG_FH_PAN_SIZE = CONFIG_FH_PAN_SIZE_DEFAULT;
 bool linux_CONFIG_DOUBLE_TRICKLE_TIMER = CONFIG_DOUBLE_TRICKLE_TIMER_DEFAULT;
 bool linux_CONFIG_AUTO_START = CONFIG_AUTO_START_DEFAULT;
 bool linux_CONFIG_SECURE = CONFIG_SECURE_DEFAULT;
@@ -94,6 +95,10 @@ bool linux_CONFIG_FH_ENABLE = CONFIG_FH_ENABLE_DEFAULT;
 int  linux_CONFIG_COORD_SHORT_ADDR = CONFIG_COORD_SHORT_ADDR_DEFAULT;
 int  linux_CONFIG_MAC_BEACON_ORDER = CONFIG_MAC_BEACON_ORDER_DEFAULT;
 int  linux_CONFIG_MAC_SUPERFRAME_ORDER = CONFIG_MAC_SUPERFRAME_ORDER_DEFAULT;
+int linux_CONFIG_MIN_BE = CONFIG_MIN_BE_DEFAULT;
+int linux_CONFIG_MAX_BE = CONFIG_MAX_BE_DEFAULT;
+int linux_CONFIG_MAC_MAX_CSMA_BACKOFFS = CONFIG_MAC_MAX_CSMA_BACKOFFS_DEFAULT;
+int linux_CONFIG_MAX_RETRIES = CONFIG_MAX_RETRIES_DEFAULT;
 
 /*!
  * Called from the linux config file parser as each channel mask is parsed
@@ -301,34 +306,19 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
         return 0;
     }
 
-    if( INI_itemMatches(pINI, NULL, "fh-num-non-sleepy-neighbors" ) )
-    {
-        linux_FH_NUM_NON_SLEEPY_NEIGHBORS = INI_valueAsInt(pINI);
-        *handled = true;
-        return 0;
-    }
-
-
-    if( INI_itemMatches(pINI, NULL, "fh-num-sleepy-neighbors" ) )
-    {
-        linux_FH_NUM_SLEEPY_NEIGHBORS = INI_valueAsInt(pINI);
-        *handled = true;
-        return 0;
-    }
-
-    if( INI_itemMatches(pINI, NULL, "config-polling-interval" ) ){
+    if(INI_itemMatches(pINI, NULL, "config-polling-interval")){
         linux_CONFIG_POLLING_INTERVAL = INI_valueAsInt(pINI);
         *handled = true;
         return 0;
     }
 
-    if( INI_itemMatches(pINI, NULL, "config-reporting-interval" ) ){
+    if(INI_itemMatches(pINI, NULL, "config-reporting-interval")){
         linux_CONFIG_REPORTING_INTERVAL = INI_valueAsInt(pINI);
         *handled = true;
         return 0;
     }
 
-    if( INI_itemMatches(pINI,NULL, "config-tx-power" ) ){
+    if(INI_itemMatches(pINI,NULL, "config-tx-power")){
         linux_CONFIG_TRANSMIT_POWER = INI_valueAsInt(pINI);
         *handled = true;
 
@@ -352,9 +342,51 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
         return 0;
     }
 
-    if(INI_itemMatches(pINI, NULL, "config-linkquality"))
+	if(INI_itemMatches(pINI, NULL, "config-min-backoff"))
+	{
+		linux_CONFIG_MIN_BE = INI_valueAsInt(pINI);
+		*handled = true;
+		return 0;
+	}
+
+	if(INI_itemMatches(pINI, NULL, "config-max-backoff"))
+	{
+		linux_CONFIG_MAX_BE = INI_valueAsInt(pINI);
+		*handled = true;
+		return 0;
+	}
+    
+	if(INI_itemMatches(pINI, NULL, "config-max-csma-backoff"))
+	{
+		linux_CONFIG_MAC_MAX_CSMA_BACKOFFS = INI_valueAsInt(pINI);
+		*handled = true;
+		return 0;
+	}
+
+	if(INI_itemMatches(pINI, NULL, "config-max-retries"))
+	{
+		linux_CONFIG_MAX_RETRIES = INI_valueAsInt(pINI);
+		*handled = true;
+		return 0;
+	}
+
+	if(INI_itemMatches(pINI, NULL, "config-reporting-interval "))
     {
-        linux_CONFIG_LINKQUALITY = (uint8_t)INI_valueAsInt(pINI);
+        linux_CONFIG_REPORTING_INTERVAL = INI_valueAsInt(pINI);
+        *handled = true;
+        return 0;
+    }
+
+    if(INI_itemMatches(pINI, NULL, "config-polling-interval"))
+    {
+        linux_CONFIG_POLLING_INTERVAL = INI_valueAsInt(pINI);
+        *handled = true;
+        return 0;
+    }
+
+    if(INI_itemMatches(pINI, NULL, "config-tracking-delay-time"))
+    {
+        linux_TRACKING_DELAY_TIME = INI_valueAsInt(pINI);
         *handled = true;
         return 0;
     }
@@ -362,13 +394,6 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
     if(INI_itemMatches(pINI, NULL, "config-scan-duration"))
     {
         linux_CONFIG_SCAN_DURATION = (uint8_t)INI_valueAsInt(pINI);
-        *handled = true;
-        return 0;
-    }
-
-    if(INI_itemMatches(pINI, NULL, "config-percentfilter"))
-    {
-        linux_CONFIG_PERCENTFILTER = (uint8_t)INI_valueAsInt(pINI);
         *handled = true;
         return 0;
     }
@@ -402,6 +427,35 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
         return 0;
     }
 
+    if(INI_itemMatches(pINI, NULL, "config-broadcast-interval"))
+    {
+        linux_FH_BROADCAST_INTERVAL = INI_valueAsInt(pINI);
+        *handled = true;
+        return 0;
+    }
+
+
+    if(INI_itemMatches(pINI, NULL, "config-fh-num-non-sleepy-hopping-neighbors"))
+    {
+        linux_FH_NUM_NON_SLEEPY_HOPPING_NEIGHBORS = INI_valueAsInt(pINI);
+        *handled = true;
+        return 0;
+    }
+
+    if(INI_itemMatches(pINI, NULL, "config-fh-num-sleepy-non-sleepy-fixed-channel-neighbors"))
+    {
+        linux_FH_NUM_NON_SLEEPY_FIXED_CHANNEL_NEIGHBORS = INI_valueAsInt(pINI);
+        *handled = true;
+        return 0;
+    }
+
+    if(INI_itemMatches(pINI, NULL, "config-fh-broadcast-dwell-time"))
+    {
+        linux_FH_BROADCAST_DWELL_TIME = INI_valueAsInt(pINI);
+        *handled = true;
+        return 0;
+    }
+
     if(INI_itemMatches(pINI,NULL, "config-trickle-min-clk-duration"))
     {
         linux_CONFIG_TRICKLE_MIN_CLK_DURATION = INI_valueAsInt(pINI);
@@ -409,13 +463,13 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
         return 0;
     }
 
-    if( INI_itemMatches(pINI,NULL, "config-trickle-max-clk-duration") ){
+    if(INI_itemMatches(pINI,NULL, "config-trickle-max-clk-duration") ){
         linux_CONFIG_TRICKLE_MAX_CLK_DURATION = INI_valueAsInt(pINI);
         *handled = true;
         return 0;
     }
 
-    if( INI_itemMatches(pINI, NULL, "config-double-trickle-timer" ) ){
+    if(INI_itemMatches(pINI, NULL, "config-double-trickle-timer") ){
         linux_CONFIG_DOUBLE_TRICKLE_TIMER = INI_valueAsBool(pINI);
         *handled = true;
         return 0;
@@ -442,13 +496,6 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
         return 0;
     }
 
-    if(INI_itemMatches(pINI, NULL, "config-fh-pan-size"))
-    {
-        linux_CONFIG_FH_PAN_SIZE = INI_valueAsInt(pINI);
-        *handled = true;
-        return 0;
-    }
-
     if(INI_itemMatches(pINI, NULL, "config-coord-short-addr"))
     {
         linux_CONFIG_COORD_SHORT_ADDR = INI_valueAsInt(pINI);
@@ -456,14 +503,14 @@ static int my_APP_settings(struct ini_parser *pINI, bool *handled)
         return 0;
     }
 
-    if( INI_itemMatches( pINI, NULL, "config-mac-beacon-order"))
+    if(INI_itemMatches( pINI, NULL, "config-mac-beacon-order"))
     {
         linux_CONFIG_MAC_BEACON_ORDER = INI_valueAsInt(pINI);
         *handled = true;
         return 0;
     }
 
-    if( INI_itemMatches( pINI, NULL, "config-mac-superframe-order" ))
+    if(INI_itemMatches( pINI, NULL, "config-mac-superframe-order"))
     {
         linux_CONFIG_MAC_SUPERFRAME_ORDER = INI_valueAsInt(pINI);
         *handled = true;
@@ -549,7 +596,7 @@ static int cfg_callback(struct ini_parser *pINI, bool *handled)
     return 0;
 }
 
-/* Our main... */
+/* Our main */
 int main(int argc, char **argv)
 {
     int r;
@@ -558,7 +605,7 @@ int main(int argc, char **argv)
 
     if( argc == 1 )
     {
-        /* use default config filename */
+        /* Use default config filename */
         cfg_filenames[0] = argv[0];
         cfg_filenames[1] = "collector.cfg";
         cfg_filenames[2] = NULL;
@@ -572,7 +619,8 @@ int main(int argc, char **argv)
     STREAM_init();
     TIMER_init();
     LOG_init("/dev/stderr");
-    /* we want these logs to begin with */
+
+    /* We want these logs to begin with */
     log_cfg.log_flags = LOG_FATAL | LOG_WARN | LOG_ERROR;
 
     APP_defaults();
@@ -586,7 +634,7 @@ int main(int argc, char **argv)
         }
     }
 
-    /* And away we go! */
+    /* Begin application */
     APP_main();
 
     exit(0);

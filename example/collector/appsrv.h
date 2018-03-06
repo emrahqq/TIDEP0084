@@ -4,7 +4,7 @@
  @brief TIMAC 2.0 API Application Server API
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -40,7 +40,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
  #ifndef APPINTERFACE_H
  #define APPINTERFACE_H
@@ -83,7 +83,54 @@ extern struct uart_cfg         uart_cfg;
 /******************************************************************************
  Function Prototypes
  *****************************************************************************/
+#ifdef PROCESS_JS
+#define APPSRV_SYS_ID_RPC 10
+#define APPSRV_DEVICE_JOINED_IND 0
+#define APPSRV_DEVICE_LEFT_IND 1
+#define APPSRV_NWK_INFO_IND 2
+#define APPSRV_GET_NWK_INFO_REQ 3
+#define APPSRV_GET_NWK_INFO_RSP 4
+#define APPSRV_GET_NWK_INFO_CNF 5
+#define APPSRV_GET_DEVICE_ARRAY_REQ 6
+#define APPSRV_GET_DEVICE_ARRAY_CNF 7
+#define APPSRV_DEVICE_NOTACTIVE_UPDATE_IND 8
+#define APPSRV_DEVICE_DATA_RX_IND 9
+#define APPSRV_COLLECTOR_STATE_CNG_IND 10
+#define APPSRV_SET_JOIN_PERMIT_REQ 11
+#define APPSRV_SET_JOIN_PERMIT_CNF 12
+#define APPSRV_TX_DATA_REQ 13
+#define APPSRV_TX_DATA_CNF 14
+#define APPSRV_RMV_DEVICE_REQ 15
+#define APPSRV_RMV_DEVICE_RSP 16
 
+#define HEADER_LEN 4
+#define TX_DATA_CNF_LEN 4
+#define JOIN_PERMIT_CNF_LEN 4
+#define NWK_INFO_REQ_LEN 18
+#define NWK_INFO_IND_LEN 17
+#define DEV_ARRAY_HEAD_LEN 3
+#define DEV_ARRAY_INFO_LEN 18
+#define DEVICE_JOINED_IND_LEN 18
+#define DEVICE_NOT_ACTIVE_LEN 13
+#define STATE_CHG_IND_LEN 1
+#define REMOVE_DEVICE_RSP_LEN 0
+
+#define BEACON_ENABLED 1
+#define NON_BEACON 2
+#define FREQUENCY_HOPPING 3
+
+#define RMV_STATUS_SUCCESS 0
+#define RMV_STATUS_FAIL 1
+/*!
+ * @brief        Csf module calls this function to inform the applicaiton client
+                         of the reported sensor data from a network device
+ *
+ * @param
+ *
+ * @return
+ */
+void appsrv_deviceRawDataUpdate(ApiMac_mcpsDataInd_t *pDataInd);
+#endif
 /*
  * Sets defaults for the application.
  */

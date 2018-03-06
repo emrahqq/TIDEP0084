@@ -4,7 +4,7 @@
  @brief TIMAC 2.0 API Primary application file for NPI server application
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -40,7 +40,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 
 #include "compiler.h"
@@ -131,7 +131,7 @@ static void lock_uart(void)
         {
             continue;
         }
-        LOG_printf(LOG_ERROR,"Hmm uart locked %d seconds by: %s\n",
+        LOG_printf(LOG_ERROR,"UART locked %d seconds by: %s\n",
                    n, MUTEX_lockerName(uart_mutex));
     }
 
@@ -159,7 +159,7 @@ void APP_defaults(void)
     my_socket_cfg.service = strdup("5000");
     if(my_socket_cfg.service == NULL)
     {
-        BUG_HERE("no memory\n");
+        BUG_HERE("No memory\n");
     }
 
     common_uart_interface.dbg_name = strdup("uart");
@@ -196,7 +196,7 @@ void APP_defaults(void)
     socket_interface_template.dbg_name = strdup("socket");
     if(socket_interface_template.dbg_name == NULL)
     {
-        BUG_HERE("no memory\n");
+        BUG_HERE("No memory\n");
     }
     socket_interface_template.frame_sync = true;
     socket_interface_template.include_chksum = true;
@@ -288,11 +288,17 @@ static intptr_t u2s_thread(intptr_t cookie)
 
         /* we just transmit it to the socket */
         MT_MSG_setDestIface(pMsg, &(pCONN->socket_interface));
+
         /* but first, we must reformat for the socket */
         MT_MSG_reformat(pMsg);
 
         /* we just send it */
         MT_MSG_txrx(pMsg);
+
+        MT_MSG_log(LOG_DBG_MT_MSG_traffic, pMsg, "*** Sending UART Data to "
+            "socket (%s -> %s). Sequence ID: %d Length: %d\n",
+            pMsg->pSrcIface->dbg_name, pMsg->pDestIface->dbg_name,
+            pMsg->sequence_id, pMsg->expected_len);
 
         /* we don't need this any more */
         MT_MSG_free(pMsg);
@@ -371,10 +377,10 @@ static void say_forward(struct mt_msg *pMsg)
         break;
     }
 
-    MT_MSG_log(LOG_DBG_MT_MSG_traffic, pMsg, "*** Forwarding %s to (%s -> %s)\n",
-        cp,
-        pMsg->pSrcIface->dbg_name, pMsg->pDestIface->dbg_name);
-
+    MT_MSG_log(LOG_DBG_MT_MSG_traffic, pMsg, "*** Forwarding %s to (%s -> %s)."
+        "Sequence ID: %d Length: %d\n", cp,
+        pMsg->pSrcIface->dbg_name, pMsg->pDestIface->dbg_name,
+        pMsg->sequence_id, pMsg->expected_len);
 }
 
 /*
@@ -491,7 +497,7 @@ static intptr_t s2u_thread(intptr_t cookie)
         if (STREAM_isError(common_uart_interface.hndl))
         {
             pCONN->is_dead = true;
-            LOG_printf(LOG_ERROR, "%s: uart dead - closing socket\n",
+            LOG_printf(LOG_ERROR, "%s: UART dead - closing socket\n",
                        THREAD_selfName());
             continue;
         }
@@ -575,14 +581,23 @@ static intptr_t uart_thread(intptr_t _notused)
     uart_mutex = MUTEX_create("uart-mutex");
     if(uart_mutex == 0)
     {
-        BUG_HERE("cannot create uart mutex\n");
+        BUG_HERE("Cannot create uart mutex\n");
     }
 
     r = MT_MSG_interfaceCreate(&(common_uart_interface));
+
     if(r != 0)
     {
         BUG_HERE("Cannot create uart interface\n");
     }
+
+    LOG_printf(LOG_ALWAYS, "UART connection established on port: %s\n",
+        common_uart_interface.u_cfg->devname);
+
+#ifndef IS_HEADLESS
+    fprintf(stdout, "UART connection established on port: %s\n",
+        common_uart_interface.u_cfg->devname);
+#endif //IS_HEADLESS
 
     uart_thread_ready = true;
     /* wait for the server to come up */
@@ -668,20 +683,28 @@ static intptr_t server_thread(intptr_t _notused)
 
     if(all_connections_mutex == 0)
     {
-        BUG_HERE("cannot create connection list mutex\n");
+        BUG_HERE("Cannot create connection list mutex\n");
     }
 
     server_handle = SOCKET_SERVER_create(&my_socket_cfg);
     if(server_handle == 0)
     {
-        BUG_HERE("cannot create socket to listen\n");
+        BUG_HERE("Cannot create server socket\n");
     }
 
     r = SOCKET_SERVER_listen(server_handle);
     if(r != 0)
     {
-        BUG_HERE("cannot set listen mode\n");
+        BUG_HERE("Cannot set server socket to listen mode\n");
     }
+
+    LOG_printf(LOG_ALWAYS, "Socket server listening on port: %s\n",
+        my_socket_cfg.service);
+
+#ifndef IS_HEADLESS
+    fprintf(stdout, "Socket server listening on port: %s\n",
+        my_socket_cfg.service);
+#endif //IS_HEADLESS
 
     /* we are ready.. */
     server_thread_ready = true;
@@ -696,7 +719,7 @@ static intptr_t server_thread(intptr_t _notused)
     {
         if(STREAM_isError(server_handle))
         {
-            LOG_printf(LOG_ERROR, "server (accept) socket is dead\n");
+            LOG_printf(LOG_ERROR, "Server (accept) socket is dead\n");
             break;
         }
         if(pCONN == NULL)
@@ -715,7 +738,7 @@ static intptr_t server_thread(intptr_t _notused)
             pCONN->dbg_name = strdup(buf);
             if(pCONN->dbg_name == NULL)
             {
-                BUG_HERE("no memory\n");
+                BUG_HERE("No memory\n");
             }
             MT_MSG_LIST_create(&(pCONN->areq_list), pCONN->dbg_name, "areq");
         }
@@ -724,11 +747,11 @@ static intptr_t server_thread(intptr_t _notused)
         r = SOCKET_SERVER_accept(&(pCONN->socket_interface.hndl), server_handle, 5000);
         if(r < 0)
         {
-            BUG_HERE("cannot accept!\n");
+            BUG_HERE("Cannot accept!\n");
         }
         if(r == 0)
         {
-            LOG_printf(LOG_ALWAYS, "no connection yet\n");
+            LOG_printf(LOG_ALWAYS, "No new server connections\n");
             continue;
         }
         /* we have a connection */
@@ -749,8 +772,16 @@ static intptr_t server_thread(intptr_t _notused)
         pCONN->dbg_name = strdup(buf);
         if(pCONN->dbg_name == NULL)
         {
-            BUG_HERE("no memory\n");
+            BUG_HERE("No memory\n");
         }
+
+        LOG_printf(LOG_ALWAYS, "Socket connection established. Port %s Id: %d\n",
+            my_socket_cfg.service, pCONN->connection_id);
+
+#ifndef IS_HEADLESS
+        fprintf(stdout, "Socket connection established. Port %s Id: %d\n",
+            my_socket_cfg.service, pCONN->connection_id);
+#endif //IS_HEADLESS
 
         (void)snprintf(buf, sizeof(buf),
                   "u2s-%d",

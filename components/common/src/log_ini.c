@@ -4,7 +4,7 @@
  @brief TIMAC 2.0 API Parse log file settings from an INI file
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -40,7 +40,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 
 #include "compiler.h"
@@ -50,20 +50,22 @@
 #include <string.h>
 
 const struct ini_flag_name log_builtin_flag_names[] = {
-    { .name = "everything"         , .value = LOG_EVERYTHING     },
-    { .name = "warning"            , .value = LOG_WARN           },
-    { .name = "error"              , .value = LOG_ERROR          },
-    { .name = "fatal"              , .value = LOG_FATAL          },
-    { .name = "sys_dbg_mutex"      , .value = LOG_DBG_MUTEX      },
-    { .name = "sys_dbg_thread"     , .value = LOG_DBG_THREAD     },
-    { .name = "sys_dbg_fifo"       , .value = LOG_DBG_FIFO       },
-    { .name = "sys_dbg_uart"       , .value = LOG_DBG_UART       },
-    { .name = "sys_dbg_uart_raw"   , .value = LOG_DBG_UART_RAW   },
-    { .name = "sys_dbg_sleep"      , .value = LOG_DBG_SLEEP      },
-    { .name = "sys_dbg_socket"     , .value = LOG_DBG_SOCKET     },
-    { .name = "sys_dbg_socket_raw" , .value = LOG_DBG_SOCKET_RAW },
+    { .name = "everything"            , .value = LOG_EVERYTHING           },
+    { .name = "warning"               , .value = LOG_WARN                 },
+    { .name = "error"                 , .value = LOG_ERROR                },
+    { .name = "fatal"                 , .value = LOG_FATAL                },
+    { .name = "sys_dbg_mutex"         , .value = LOG_DBG_MUTEX            },
+    { .name = "sys_dbg_thread"        , .value = LOG_DBG_THREAD           },
+    { .name = "sys_dbg_fifo"          , .value = LOG_DBG_FIFO             },
+    { .name = "sys_dbg_uart"          , .value = LOG_DBG_UART             },
+    { .name = "sys_dbg_uart_raw"      , .value = LOG_DBG_UART_RAW         },
+    { .name = "sys_dbg_sleep"         , .value = LOG_DBG_SLEEP            },
+    { .name = "sys_dbg_socket"        , .value = LOG_DBG_SOCKET           },
+    { .name = "sys_dbg_socket_raw"    , .value = LOG_DBG_SOCKET_RAW       },
+    { .name = "sys_dbg_collector"     , .value = LOG_DBG_COLLECTOR        },
+    { .name = "sys_dbg_collector_raw" , .value = LOG_DBG_COLLECTOR_RAW    },
     /* terminate list */
-    { .name = NULL                          }
+    { .name = NULL                                                        }
 };
 
 /*

@@ -100,7 +100,6 @@ function Gateway() {
 	 * Network Information Message Type to the Cloud
 	 */
 	var gotNwkUpdate = false;
-	var gotDevArray = false;
 
 	/* This functions checks every second to see if we've got the
 	 * network and device information we need and also checks if we are
@@ -109,7 +108,7 @@ function Gateway() {
 	 * then clear the interval so the function won't repeat.
 	 */
 	var intervalID = setInterval( function() {
-		if (cloudAdapter.connected && gotNwkUpdate && gotDevArray){
+		if (cloudAdapter.connected && gotNwkUpdate){
 			var nwkInfo = formatNwkInfoMsg(appClient.nwkInfo, appClient.connectedDeviceList);
 			cloudAdapter.cloudAdapter_sendNetworkInfoMsg(nwkInfo);
 			if (isAws){
@@ -128,29 +127,15 @@ function Gateway() {
 		appClient.appC_setPermitJoin(data);
 	});
 
-	/* Allows the Cloud to sent toggleLED messages to devices in the wireless network */
+	/* Allows the Cloud to sent actuation messages to devices in the wireless network */
 	cloudAdapter.on('deviceActuation', function (data) {
-		console.log("deviceActuation");
-		console.log(data);
-		appClient.appC_sendToggle(data);
+		appClient.appC_sendDeviceActuation(data);
 	});
 
 	/* rcvd send config req */
 	cloudAdapter.on('sendConfig', function (data) {
 		/* send config request */
 		appClient.appC_sendConfig(data);
-	});
-
-	/* rcvd send toggle req */
-	cloudAdapter.on('sendToggle', function (data) {
-		/* send toggle request */
-		appClient.appC_sendToggle(data);
-	});
-
-	/* rcvd getDevArray Req */
-	cloudAdapter.on('getDevArrayReq', function (data) {
-		/* process the request */
-		appClient.appC_getDeviceArray();
 	});
 
 	/* rcvd getNwkInfoReq */
@@ -178,16 +163,10 @@ function Gateway() {
 	});
 
 	/* Send Network Information Message to Cloud Adapter */
-	appClient.on('nwkUpdate', function () {
+	appClient.on('nwkInfo', function () {
 		gotNwkUpdate = true;
 		var nwkInfo = formatNwkInfoMsg(appClient.nwkInfo, appClient.connectedDeviceList);
-		cloudAdapter.cloudAdapter_sendNetworkInfoMsg(nwkInfo);
-	});
-
-	/* Send Network Information Message to Cloud Adapter */
-	appClient.on('getdevArrayRsp', function () {
-		gotDevArray = true;
-		var nwkInfo = formatNwkInfoMsg(appClient.nwkInfo, appClient.connectedDeviceList);
+		console.log("nwkInfo:", nwkInfo);
 		cloudAdapter.cloudAdapter_sendNetworkInfoMsg(nwkInfo);
 	});
 
@@ -197,6 +176,11 @@ function Gateway() {
 	 */
 	function formatNwkInfoMsg(nwkInfo, conDevs) {
 		var devices = [];
+		if (nwkInfo == null || conDevs == null)
+		{
+			console.log("formatNwkInfoMsg: invalid parameters");
+			return null;
+		}	
 		var nwkAddress = '0x' + nwkInfo.panCoord.extAddress.toString(16);
 		for(i = 0; i < conDevs.length; i++) {
 			var short_addr = '0x' + conDevs[i].shortAddress.toString(16);
@@ -251,4 +235,3 @@ function Gateway() {
 
 /* create gateway */
 var gateway = new Gateway();
-

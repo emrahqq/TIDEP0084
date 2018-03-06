@@ -4,7 +4,7 @@
  @brief TIMAC 2.0 API Linux "main" for the NPI server application
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -40,7 +40,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: July 14, 2016 (2.00.00.30)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 
 #include "compiler.h"
@@ -173,7 +173,7 @@ int main(int argc, char **argv)
     switch(argc)
     {
     default:
-        fprintf(stderr, "usage: %s [CONFIGFILE]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [CONFIGFILE]\n", argv[0]);
         fprintf(stderr, "\n");
         fprintf(stderr, "Default CONFIGFILE = %s\n", cfg_filename);
         exit(1);

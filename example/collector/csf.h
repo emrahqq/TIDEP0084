@@ -5,7 +5,7 @@
  @brief Collector Specific Functions API
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -41,7 +41,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 #ifndef CSF_H
 #define CSF_H
@@ -248,6 +248,18 @@ extern void Csf_initializeTrackingClock(void);
 extern void Csf_setTrackingClock(uint32_t trackingTime);
 
 /*!
+ * @brief       Initialize the broadcast clock.
+ */
+extern void Csf_initializeBroadcastClock(void);
+
+/*!
+ * @brief       set the broadcast cmd clock.
+ *
+ * @param       broadcast time - set timer this value (in msec)
+ */
+extern void Csf_setBroadcastClock(uint32_t trackingTime);
+
+/*!
  * @brief       Initialize the trickle timer clock
  */
 extern void Csf_initializeTrickleClock(void);
@@ -299,6 +311,16 @@ extern uint16_t Csf_getNumDeviceListEntries(void);
  * @return      CSF_INVALID_SHORT_ADDR if not found, otherwise the short address
  */
 extern uint16_t Csf_getDeviceShort(ApiMac_sAddrExt_t *pExtAddr);
+
+/*!
+ * @brief       Find the extended address froma given short address
+ *
+ * @param       shortAddr - short address used to find the device
+ * @param       pExtAddr - Memory location to copy the found extended address to.
+ *
+ * @return      true if found and extended address is copied to pExtAddr, false if not
+ */
+bool Csf_getDeviceExtended(uint16_t shortAddr, ApiMac_sAddrExt_t *pExtAddr);
 
 /*!
  * @brief       Find entry in device list from an address
@@ -405,6 +427,18 @@ extern bool Csf_isConfigTimerActive(void);
  * @return      true if active, false if not active
  */
 extern bool Csf_isTrackingTimerActive(void);
+
+#ifdef PROCESS_JS
+/*!
+ * @brief       The application calls this function to indicate that a device
+ *              has reported raw sensor data.
+ *
+ *              The information will be saved.
+ *
+ * @param       pDataInd - raw inbound data
+ */
+extern void Csf_deviceRawDataUpdate(ApiMac_mcpsDataInd_t *pDataInd);
+#endif
 
 #ifdef __cplusplus
 }

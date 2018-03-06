@@ -80,7 +80,7 @@ function Webserver() {
 	server.listen( port, '0.0.0.0');
 	var path = require('path');
 	app.use(express.static(path.join(__dirname, '/public')));
-  console.log("localhost port=",port);
+    console.log("localhost port=",port);
 	app.get('/', function(req, res){
 		res.sendFile(__dirname + '/collectorApp.html');
 	});
@@ -104,8 +104,8 @@ function Webserver() {
             webserverInstance.emit('sendConfig', data);
         });
 
-        socket.on('sendToggle', function (data) {
-            webserverInstance.emit('sendToggle', data);
+        socket.on('deviceActuation', function (data) {
+            webserverInstance.emit('deviceActuation', data);
         });
 
     });
@@ -120,7 +120,7 @@ function Webserver() {
         webserverInstance.io.sockets.emit('connDevInfoUpdate', data);
   };
   webserverInstance.cloudAdapter_sendNetworkInfoMsg = function(data){
-        webserverInstance.io.sockets.emit('nwkUpdate', data);
+        webserverInstance.io.sockets.emit('nwkInfo', data);
   };
 }
 

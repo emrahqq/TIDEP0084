@@ -1,11 +1,11 @@
 /******************************************************************************
 
  @file api_mac.h
-i
+
  @brief TI-15.4 Stack API
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -41,7 +41,7 @@ i
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 #ifndef API_MAC_H
 #define API_MAC_H
@@ -250,7 +250,10 @@ extern "C"
  #define APIMAC_GENERIC_CHINA_LRM_433_PHY_130    130
   /*! 863MHz ETSI LRM Frequency band operating mode #1 */
  #define APIMAC_GENERIC_ETSI_LRM_863_PHY_131     131
-
+ /*! PHY IDs - 915MHz US Frequency band operating mode # 3 */
+#define APIMAC_GENERIC_US_915_PHY_132            132
+ /*! 863MHz ETSI Frequency band operating mode #2 */
+#define APIMAC_GENERIC_ETSI_863_PHY_133          133
 /*! PHY IDs - MRFSK Generic Phy ID start */
 #define APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN APIMAC_GENERIC_CHINA_433_PHY_128
 /*! PHY IDs - MRFSK Generic Phy ID end */
@@ -752,6 +755,14 @@ typedef enum
      Range Extender Mode from 0 to 2
      */
     ApiMac_attribute_rangeExtender = 0xF5,
+    /*!
+     enable Ack Pending for Data Pkts
+     */
+    ApiMac_attribute_enDataAckPending = 0xF6,
+    /*!
+     RF Freq Selection from 1 to 2
+     */
+    ApiMac_attribute_rfFreq = 0xF7,
 } ApiMac_attribute_uint8_t;
 
 /*! Standard PIB Get and Set Attributes - size uint16_t */
@@ -964,10 +975,6 @@ typedef enum
     ApiMac_FHAttribute_fanTPSVersion = 0x2012,
     /*! Additional base wait time to sense target channel */
     ApiMac_FHAttribute_CsmaBaseBacoff = 0x201A,
-    /*! Number of non-sleepy device - uint8_t */
-    ApiMac_FHAttribute_numNonSleepDevice = 0x201b,
-    /*! Number of sleepy device - uint8_t */
-    ApiMac_FHAttribute_numSleepDevice = 0x201c,
 
 } ApiMac_FHAttribute_uint8_t;
 
@@ -988,6 +995,13 @@ typedef enum
     ApiMac_FHAttribute_panVersion = 0x2014,
     /*! Time in min during which the node info considered as valid - uint16_t */
     ApiMac_FHAttribute_neighborValidTime = 0x2019,
+    /*! Number of non-sleepy device - uint16_t */
+    ApiMac_FHAttribute_numNonSleepDevice = 0x201b,
+    /*! Number of sleepy device - uint16_t */
+    ApiMac_FHAttribute_numSleepDevice = 0x201c,
+    /*! Number of temp table node - uint16_t */
+    ApiMac_FHAttribute_numTempTableNode = 0x201d,
+
 } ApiMac_FHAttribute_uint16_t;
 
 /*! Frequency Hopping PIB Get and Set Attributes - size uint32_t */
@@ -1207,7 +1221,7 @@ typedef struct _apimac_mrfskphydesc
     /*! 2-FSK/2-GFSK/4-FSK/4-GFSK */
     uint8_t fskModScheme;
     /*! Symbol rate selection */
-    uint8_t symbolRate;
+    uint16_t symbolRate;
     /*!
      Modulation index as a value encoded in
      MR-FSK Generic PHY Descriptor IE

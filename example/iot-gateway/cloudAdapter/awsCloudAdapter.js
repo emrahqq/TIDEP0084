@@ -142,7 +142,8 @@ function AwsCloudAdapter() {
 		if (stateObject.state.toggleLED === "true") {
 			var index = thingName.lastIndexOf("_");
 			var extAddr = thingName.substr(index+1);
-			awsCloudAdapterInstance.emit('deviceActuation', {dstAddr : extAddr});
+			awsCloudAdapterInstance.emit('deviceActuation', {
+				cmd: "sendToggle", dstAddr : extAddr});
 			console.log('delta : ' + thingName + ' toggle LED');
 		}
 	});

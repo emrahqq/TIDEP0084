@@ -4,7 +4,7 @@
  @brief TIMAC 2.0 API Collector specific (linux) function definitions
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -40,7 +40,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 
 #if !defined(CSF_LINUX_H)
@@ -186,6 +186,17 @@ extern uint8_t Csf_sendConfigRequest( ApiMac_sAddr_t *pDstAddr,
  */
 extern uint8_t Csf_sendToggleLedRequest(
                 ApiMac_sAddr_t *pDstAddr);
+
+/*!
+ * @brief Build and send the toggle led message to a device.
+ *
+ * @param pDstAddr - destination address of the device to send the message
+ *
+ * @return Collector_status_success, Collector_status_invalid_state
+ *         or Collector_status_deviceNotFound
+ */
+extern uint8_t Csf_sendBuzzerCtrlRequest(
+    ApiMac_sAddr_t *pDstAddr);
 
 #endif
 

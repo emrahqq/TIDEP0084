@@ -87,6 +87,13 @@ then
     kill -9 ${PID}
 fi
 
+# Check for node_modules
+if [ ! -d "node_modules" ]
+then
+    echo "node_modules not found. Please run npm install to download and install the required dependencies for iot-gateway."
+    exit 9
+fi
+
 
 $nodejs ./iot-gateway.js $1&
 PID=$!

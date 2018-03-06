@@ -5,7 +5,7 @@
  @brief TIMAC 2.0 Collector Example Application Header
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -41,7 +41,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 #ifndef COLLECTOR_H
 #define COLLECTOR_H
@@ -70,6 +70,8 @@ extern "C"
 #define COLLECTOR_TRACKING_TIMEOUT_EVT 0x0002
 /*! Event ID - Generate Configs Event */
 #define COLLECTOR_CONFIG_EVT 0x0004
+/*! Event ID - Broadcast Timeout Event */
+#define COLLECTOR_BROADCAST_TIMEOUT_EVT 0x0008
 
 /*! Collector Status Values */
 typedef enum
@@ -140,6 +142,8 @@ typedef struct
     uint32_t txTransactionExpired;
     /* Total transaction Overflow error */
     uint32_t txTransactionOverflow;
+    /* Total broadcast messages sent */
+    uint16_t broadcastMsgSentCnt;
 } Collector_statistics_t;
 
 /******************************************************************************
@@ -191,16 +195,6 @@ extern Collector_status_t Collector_sendConfigRequest(ApiMac_sAddr_t *pDstAddr,
                 uint32_t pollingInterval);
 
 /*!
- * @brief Find if device exists.
- *
- * @param pAddr - Address of device
- *
- * @return Collector_status_success
- *         or Collector_status_deviceNotFound
- */
-extern Collector_status_t Collector_findDevice(ApiMac_sAddr_t *pAddr);
-
-/*!
  * @brief Update the collector statistics
  */
 extern void Collector_updateStats( void );
@@ -237,7 +231,7 @@ extern Collector_status_t Collector_sendFwVersionRequest(
                 ApiMac_sAddr_t *pDstAddr);
 
 /*!
- * @brief .Check a device exists
+ * @brief Check if a device exists
  *
  * @param pAddr - destination address of the device
  *
@@ -256,6 +250,17 @@ extern Collector_status_t Collector_findDevice(
  *         or Collector_status_deviceNotFound
  */
 extern Collector_status_t Collector_startFwUpdate(ApiMac_sAddr_t *pDstAddr, uint32_t oad_file_id);
+
+/*!
+ * @brief Build and send the toggle led message to a device.
+ *
+ * @param pDstAddr - destination address of the device to send the message
+ *
+ * @return Collector_status_success, Collector_status_invalid_state
+ *         or Collector_status_deviceNotFound
+ */
+extern Collector_status_t Collector_sendBuzzerCtrlRequest(
+    ApiMac_sAddr_t *pDstAddr);
 
 #ifdef __cplusplus
 }

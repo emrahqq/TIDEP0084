@@ -5,29 +5,29 @@
  @brief Data Structures for the sensor messages sent over the air.
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
-
+  
    Copyright (c) 2015, Texas Instruments Incorporated
    All rights reserved.
-
+  
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
-
+  
    *  Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
-
+  
    *  Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-
+  
    *  Neither the name of Texas Instruments Incorporated nor the names of
       its contributors may be used to endorse or promote products derived
       from this software without specific prior written permission.
-
+  
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
    THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -41,7 +41,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 #ifndef SMGSS_H
 #define SMGSS_H
@@ -175,6 +175,8 @@ extern "C"
 #define SMSGS_TRACKING_REQUEST_MSG_LENGTH 1
 /*! Tracking Response message length (over-the-air length) */
 #define SMSGS_TRACKING_RESPONSE_MSG_LENGTH 1
+/*! Broadcast Command message length (over-the-air-length) */
+#define SMSGS_BROADCAST_CMD_LENGTH  3
 
 /*! Length of a sensor data message with no configured data fields */
 #define SMSGS_BASIC_SENSOR_LEN (3 + SMGS_SENSOR_EXTADDR_LEN)
@@ -184,6 +186,14 @@ extern "C"
 #define SMSGS_SENSOR_LIGHT_LEN 2
 /*! Length of the humiditySensor portion of the sensor data message */
 #define SMSGS_SENSOR_HUMIDITY_LEN 4
+/*! Length of the messageStatistics portion of the sensor data message */
+#define SMSGS_SENSOR_MSG_STATS_LEN 40
+/*! Length of the configSettings portion of the sensor data message */
+#define SMSGS_SENSOR_CONFIG_SETTINGS_LEN 8
+/*! Toggle Led Request message length (over-the-air length) */
+#define SMSGS_TOGGLE_LED_REQUEST_MSG_LEN 1
+/*! Toggle Led Request message length (over-the-air length) */
+#define SMSGS_TOGGLE_LED_RESPONSE_MSG_LEN 2
 /*! Length of the pressureSensor portion of the sensor data message */
 #define SMSGS_SENSOR_PRESSURE_LEN 8
 /*! Length of the motionSensor portion of the sensor data message */
@@ -191,33 +201,30 @@ extern "C"
 /*! Length of the batteryVoltageSensor portion of the sensor data message */
 #define SMSGS_SENSOR_BATTERY_LEN 4
 /*! Length of the hallEffectSensor portion of the sensor data message */
-#define SMSGS_SENSOR_HALL_EFFECT_LEN   2
+#define SMSGS_SENSOR_HALL_EFFECT_LEN 2
 /*! Length of the fanSensor portion of the sensor data message */
 #define SMSGS_SENSOR_FAN_LEN 1
 /*! Length of the doorLockSensor portion of the sensor data message */
 #define SMSGS_SENSOR_DOORLOCK_LEN 1
-/*! Length of the messageStatistics portion of the sensor data message */
-#define SMSGS_SENSOR_MSG_STATS_LEN 36
-/*! Length of the configSettings portion of the sensor data message */
-#define SMSGS_SENSOR_CONFIG_SETTINGS_LEN 8
-/*! Toggle Led Request message length (over-the-air length) */
-#define SMSGS_TOGGLE_LED_REQUEST_MSG_LEN 1
-/*! Toggle Led Request message length (over-the-air length) */
-#define SMSGS_TOGGLE_LED_RESPONSE_MSG_LEN 2
+/*! Length of the waterleakSensor portion of the sensor data message */
+#define SMSGS_SENSOR_WATERLEAK_LEN 2
+/*! Control Buzzer Request message length (over-the-air length) */
+#define SMSGS_BUZZER_CTRL_REQUEST_MSG_LEN 1
+/*! Control Buzzer Response message length (over-the-air length) */
+#define SMSGS_BUZZER_CTRL_RESPONSE_MSG_LEN 1
 
 /*!
  Message IDs for Sensor data messages.  When sent over-the-air in a message,
  this field is one byte.
  */
- typedef enum
- {
+typedef enum {
     /*! Configuration message, sent from the collector to the sensor */
     Smsgs_cmdIds_configReq = 1,
     /*! Configuration Response message, sent from the sensor to the collector */
     Smsgs_cmdIds_configRsp = 2,
     /*! Tracking request message, sent from the the collector to the sensor */
     Smsgs_cmdIds_trackingReq = 3,
-     /*! Tracking response message, sent from the sensor to the collector */
+    /*! Tracking response message, sent from the sensor to the collector */
     Smsgs_cmdIds_trackingRsp = 4,
     /*! Sensor data message, sent from the sensor to the collector */
     Smsgs_cmdIds_sensorData = 5,
@@ -225,15 +232,21 @@ extern "C"
     Smsgs_cmdIds_toggleLedReq = 6,
     /* Toggle LED response msg, sent from the sensor to the collector */
     Smsgs_cmdIds_toggleLedRsp = 7,
-    /* new data type for ramp sensor data */
+    /* new data type for ramp data */
     Smsgs_cmdIds_rampdata = 8,
     /*! OAD mesages, sent/received from both collector and sensor */
     Smsgs_cmdIds_oad = 9,
+    /* Broadcast control msg, sent from the collector to the sensor */
+    Smgs_cmdIds_broadcastCtrlMsg = 10,
     /*! Fan speed control command */
-    Smsgs_cmdIds_fanSpeedChg = 10,
+    Smsgs_cmdIds_fanSpeedChg = 110,
     /*! Door lock command */
-    Smsgs_cmdIds_doorlockChg = 11
- } Smsgs_cmdIds_t;
+    Smsgs_cmdIds_doorlockChg = 111,
+    /* Control the Buzzer, sent from the collector to the sensor */
+    Smsgs_cmdIds_buzzerCtrlReq = 112,
+    /* Control the Buzzer response msg, sent from the sensor to the collector */
+    Smsgs_cmdIds_buzzerCtrlRsp = 113
+} Smsgs_cmdIds_t;
 
 /*!
  Frame Control field states what data fields are included in reported
@@ -241,8 +254,7 @@ extern "C"
  (OR'd together) in a control field.
  When sent over-the-air in a message this field is 2 bytes.
  */
-typedef enum
-{
+typedef enum {
     /*! Temperature Sensor */
     Smsgs_dataFields_tempSensor = 0x0001,
     /*! Light Sensor */
@@ -264,7 +276,9 @@ typedef enum
     /*! Fan Sensor */
     Smsgs_dataFields_fanSensor = 0x0200,
     /*! Door Lock Sensor */
-    Smsgs_dataFields_doorLockSensor = 0x0400
+    Smsgs_dataFields_doorLockSensor = 0x0400,
+    /*! Water Leak Sensor */
+    Smsgs_dataFields_waterleakSensor = 0x0800,
 } Smsgs_dataFields_t;
 
 /*!
@@ -362,6 +376,27 @@ typedef struct _Smsgs_toggleledrspmsg_t
 } Smsgs_toggleLedRspMsg_t;
 
 /*!
+ Buzzer Ctrl Request message: sent from controller to the sensor.
+ */
+typedef struct _Smsgs_buzzerctrlreqmsg_t
+{
+    /*! Command ID - 1 byte */
+    Smsgs_cmdIds_t cmdId;
+} Smsgs_buzzerCtrlReqMsg_t;
+
+/*!
+  Buzzer Ctrl Response message: sent from the sensor to the collector
+  in response to the Buzzer Ctrl Request message.
+  */
+typedef struct _Smsgs_buzzerctrlrspmsg_t
+{
+    /*! Command ID - 1 byte */
+    Smsgs_cmdIds_t cmdId;
+    /*! LED State - 0 is off, 1 is on - 1 byte */
+    uint8_t buzzerState;
+} Smsgs_buzzerCtrlRspMsg_t;
+
+/*!
  Temp Sensor Field
  */
 typedef struct _Smsgs_tempsensorfield_t
@@ -399,6 +434,15 @@ typedef struct _Smsgs_humiditysensorfield_t
 } Smsgs_humiditySensorField_t;
 
 /*!
+ Water Leak Sensor Field
+ */
+typedef struct _Smsgs_waterleaksensorfield_t
+{
+    /*! Status of water leak detector, 1 if leak detected */
+    uint16_t status;
+} Smsgs_waterleakSensorField_t;
+
+/*!
  Pressure Sensor Field
  */
 typedef struct _Smsgs_pressuresensorfield_t
@@ -426,7 +470,7 @@ typedef struct _Smsgs_batterysensorfield_t
 {
     /* battery voltage value */
     uint32_t voltageValue;
-}Smsgs_batterySensorField_t;
+} Smsgs_batterySensorField_t;
 
 /*!
     Hall Effect Sensor Field
@@ -514,6 +558,14 @@ typedef struct _Smsgs_msgstatsfield_t
     uint16_t joinTime;
     /*! Delay between sending a packet and receiving an ack */
     uint16_t interimDelay;
+    /*!
+     Number of broadcast messages received from the collector
+     */
+    uint16_t numBroadcastMsgRcvd;
+    /*!
+    Number of broadcast messages missed from the collector
+    */
+    uint16_t numBroadcastMsglost;
 } Smsgs_msgStatsField_t;
 
 /*!
@@ -570,38 +622,17 @@ typedef struct _Smsgs_sensormsg_t
      Smsgs_dataFields_configSettings is set in frameControl.
      */
     Smsgs_configSettingsField_t configSettings;
-    /*!
-        Pressure Sensor field - valid only if
-        Smsgs_dataFields_pressureSensor is set in frameControl.
-     */
-    Smsgs_pressureSensorField_t pressureSensor;
-    /*!
-        Motion Sensor field - valid only if
-        Smsgs_dataFields_motionSensor is set in frameControl.
-     */
-    Smsgs_motionSensorField_t motionSensor;
-    /*!
-        Battery Voltage Sensor field - valid only if
-        Smsgs_dataFields_batterySensor is set in frameControl.
-     */
-    Smsgs_batterySensorField_t batterySensor;
-    /*!
-        Hall Effect Sensor Field - valid only if
-        Smsgs_dataFields_hallEffectSensor is set in frameControl.
-    */
-    Smsgs_hallEffectSensorField_t hallEffectSensor;
-    /*!
-        Fan Sensor Field - valid only if
-        Smsgs_dataFields_fanSensor is set in frameControl.
-    */
-    Smsgs_fanSensorField_t fanSensor;
-    /*!
-        Door Lock Sensor Field - valid only if
-        Smsgs_dataFields_doorLockSensor is set in frameControl.
-    */
-    Smsgs_doorLockSensorField_t doorLockSensor;
 } Smsgs_sensorMsg_t;
 
+/*!
+ Broadcast Cmd Request message: sent from controller to the sensor.
+ */
+typedef struct _Smsgs_broadcastcmdmsg_t
+{
+    /*! Command ID - 1 byte */
+    Smsgs_cmdIds_t cmdId;
+    uint16_t broadcastMsgId;
+}Smsgs_broadcastcmdmsg_t;
 
 #ifdef __cplusplus
 }

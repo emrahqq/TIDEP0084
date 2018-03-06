@@ -5,7 +5,7 @@
  @brief Declaration of utility functions common to TIMAC Applications.
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -41,7 +41,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 #ifndef UTIL_H
 #define UTIL_H
@@ -65,6 +65,20 @@ extern "C"
 /******************************************************************************
  Constants and definitions
  *****************************************************************************/
+/* aBaseSuperFrame Duration in slots */
+#define BASE_SUPER_FRAME_DURATION   960
+
+/* symbol duration for 50 kbps mode in micro seconds*/
+#define SYMBOL_DURATION_50_kbps 20
+
+/* symbol duration for 200 kbps mode in micro seconds*/
+#define SYMBOL_DURATION_200_kbps 5
+
+/* symbol duration for 250 kbps mode in micro seconds*/
+#define SYMBOL_DURATION_250_kbps 16
+
+/* symbol duration for LRM mode in micro seconds*/
+#define SYMBOL_DURATION_LRM 50
 
 #if !defined(STATIC)
 #if defined(UNIT_TEST)

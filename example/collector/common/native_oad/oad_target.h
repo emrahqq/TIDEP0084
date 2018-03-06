@@ -5,7 +5,7 @@
  @brief OAD Target Header
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -41,7 +41,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 #ifndef OAD_TARGET_H
 #define OAD_TARGET_H
@@ -80,6 +80,10 @@ extern "C"
 #ifndef OAD_BLOCK_SIZE
 #define OAD_BLOCK_SIZE         128
 #endif //OAD_BLOCK_SIZE
+
+#if (OAD_BLOCK_SIZE % 16)
+#error "OAD_BLOCK_SIZE must be a multiple of 16"
+#endif
 
 #define OAD_BLOCKS_PER_PAGE    (HAL_FLASH_PAGE_SIZE / OAD_BLOCK_SIZE)
 #define OAD_BLOCK_MAX          (OAD_BLOCKS_PER_PAGE * OAD_IMG_D_AREA)

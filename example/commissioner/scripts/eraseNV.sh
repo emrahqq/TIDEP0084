@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NV="../prebuilt/nv-simulation.bin"
+NV="../../prebuilt/bin/nv-simulation.bin"
 
 if [ -f $NV ] ; then
   rm $NV

@@ -5,7 +5,7 @@
  @brief OAD Protocol Header
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -41,7 +41,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 /*!*****************************************************************************
  *  @file       oad_protocol.h
@@ -190,6 +190,12 @@
 
 #define OADProtocol_PKT_CMDID_OFFSET   0   ///< Offset to packet type files in packet header
 
+#define OADProtocol_AGAMA_IMAGE_ID_LEN 22
+#define OADProtocol_AGAMA_IMAGE_HDR_LEN 0x50
+
+#define OADProtocol_IMAGE_ID_LEN 16
+#define OADProtocol_IMAGE_HDR_LEN 16
+
 /*!
  * Req/Rsp Packet Types
  */
@@ -201,7 +207,7 @@
 #define OADProtocol_VER_RSP_VERSIONSTRING_OFFSET    1   ///< Offset to version string in FW Ver Response
 
 #define OADProtocol_PACKET_TYPE_OAD_IMG_IDENTIFY_REQ                0x02 ///< OAD update image identify request
-#define OADProtocol_PACKET_TYPE_OAD_IMG_IDENTIFY_REQ_LEN            1 + 1 + 16 ///< OAD update image identify request
+#define OADProtocol_PACKET_TYPE_OAD_IMG_IDENTIFY_REQ_LEN            1 + 1 + OADProtocol_AGAMA_IMAGE_HDR_LEN ///< Assume larger header (cc13x0 OAD will ignore additional bytes)
 #define OADProtocol_IMG_IDENTIFY_REQ_IMG_ID_OFFSET    1   ///< Offset to status in Image Identify Response
 #define OADProtocol_IMG_IDENTIFY_REQ_IMG_HDR_OFFSET   2   ///< Offset to status in Image Identify Response
 

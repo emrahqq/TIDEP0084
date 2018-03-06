@@ -48,7 +48,7 @@ var util = require('util');
 var fs = require("fs");
 
 /* Collector states */
-var cllc_states = Object.freeze({
+const cllc_states = Object.freeze({
     /* Powered up, not started and waiting for user to start */
     initWaiting: 0,
     /* Starting coordinator, scanning and selecting the best parameters */
@@ -66,7 +66,7 @@ var cllc_states = Object.freeze({
 });
 
 /* Network Modes */
-var nwkModes = Object.freeze({
+const nwkModes = Object.freeze({
     BEACON_ENABLED: 1,
     NON_BEACON: 2,
     FREQUENCY_HOPPING: 3
@@ -86,32 +86,32 @@ function NwkInfo(networkInfo) {
     function createNwkInfoObj(networkInfo) {
         /* set network mode */
 
-        nwkInfo.fh = networkInfo.nwkinfo.nwkInfo.fh;
+        nwkInfo.fh = networkInfo.fh;
         /* set network channel information */
-        nwkInfo.channel = networkInfo.nwkinfo.nwkInfo.channel;
+        nwkInfo.channel = networkInfo.channel;
         /* set the PAN Coordinator device informatoin */
         nwkInfo.panCoord = {
-            panId: networkInfo.nwkinfo.nwkInfo.devInfo.panID,
-            shortAddress: networkInfo.nwkinfo.nwkInfo.devInfo.shortAddress,
-            extAddress: networkInfo.nwkinfo.nwkInfo.devInfo.extAddress
+            panId: networkInfo.devInfo.panID,
+            shortAddress: networkInfo.devInfo.shortAddress,
+            extAddress: networkInfo.devInfo.extAddress
         };
         /* set the security information */
-        nwkInfo.securityEnabled = networkInfo.nwkinfo.securityEnabled;
+        nwkInfo.securityEnabled = networkInfo.securityEnabled;
         /* set network mode */
-        if (networkInfo.nwkinfo.networkMode == nwkModes.BEACON_ENABLED) {
+        if (networkInfo.networkMode == nwkModes.BEACON_ENABLED) {
             nwkInfo.networkMode = "Beacon Enabled"
         }
-        else if (networkInfo.nwkinfo.networkMode == nwkModes.NON_BEACON) {
+        else if (networkInfo.networkMode == nwkModes.NON_BEACON) {
             nwkInfo.networkMode = "Non Beacon";
         }
-        else if (networkInfo.nwkinfo.networkMode == nwkModes.FREQUENCY_HOPPING) {
+        else if (networkInfo.networkMode == nwkModes.FREQUENCY_HOPPING) {
             nwkInfo.networkMode = "Freq Hopping";
         }
         else {
             nwkInfo.networkMode = "Unknown Mode"
         }
         /* set network state */
-        switch (networkInfo.nwkinfo.state) {
+        switch (networkInfo.state) {
             case cllc_states.initWaiting:
                 /* Application is waiting for user input
                 to start the application */
@@ -152,43 +152,43 @@ function NwkInfo(networkInfo) {
 /* update network information */
 NwkInfo.prototype.updateNwkInfo = function (networkInfo) {
     var self = this;
-    self.fh = networkInfo.nwkinfo.nwkInfo.fh;
+    self.fh = networkInfo.fh;
     /* set network channel information */
-    self.channel = networkInfo.nwkinfo.nwkInfo.channel;
+    self.channel = networkInfo.channel;
     /* set the PAN Coordinator device informatoin */
     self.panCoord = {
-        panId: networkInfo.nwkinfo.nwkInfo.devInfo.panID,
-        shortAddress: networkInfo.nwkinfo.nwkInfo.devInfo.shortAddress,
-        extAddress: networkInfo.nwkinfo.nwkInfo.devInfo.extAddress
+        panId: networkInfo.devInfo.panID,
+        shortAddress: networkInfo.devInfo.shortAddress,
+        extAddress: networkInfo.devInfo.extAddress
     };
-    self.securityEnabled = networkInfo.nwkinfo.securityEnabled;
-    self.networkMode = networkInfo.nwkinfo.networkMode;
+    self.securityEnabled = networkInfo.securityEnabled;
+    self.networkMode = networkInfo.networkMode;
     /* set network state */
-    switch (networkInfo.nwkinfo.state) {
-        case cllc_states.initWaiting://ntimac_pb.Cllc_states.Cllc_states_initWaiting
+    switch (networkInfo.state) {
+        case cllc_states.initWaiting:
             /* Application is waiting for user input
             to start the application */
             self.state = "waiting";
             break;
-        case cllc_states.startingCoordinator://ntimac_pb.Cllc_states.Cllc_states_startingCoordinator
+        case cllc_states.startingCoordinator:
             /* Application is working to start the network */
             self.state = "starting";
             break;
-        case cllc_states.initRestoringCoordinator://ntimac_pb.Cllc_states.Cllc_states_initRestoringCoordinator
+        case cllc_states.initRestoringCoordinator:
             /* Application is working to restore the network
             from previously stored informatoin */
             self.state = "restoring";
             break;
-        case cllc_states.started://ntimac_pb.Cllc_states.Cllc_states_started
-        case cllc_states.restored://ntimac_pb.Cllc_states.Cllc_states_restored
+        case cllc_states.started:
+        case cllc_states.restored:
             /* Network is started */
             self.state = "started";
             break;
-        case cllc_states.joiningAllowed://ntimac_pb.Cllc_states.Cllc_states_joiningAllowed
+        case cllc_states.joiningAllowed:
             /* Network is open for new devices to join */
             self.state = "open";
             break;
-        case cllc_states.joiningNotAllowed://ntimac_pb.Cllc_states.Cllc_states_joiningNotAllowed
+        case cllc_states.joiningNotAllowed:
             /* Network is closed for new devices to join */
             self.state = "close";
             break;
@@ -219,8 +219,8 @@ NwkInfo.prototype.updateNwkState = function (nState) {
             from previously stored informatoin */
             self.state = "restoring";
             break;
-        case cllc_states.started://ntimac_pb.Cllc_states.Cllc_states_started
-        case cllc_states.restored://ntimac_pb.Cllc_states.Cllc_states_restored
+        case cllc_states.started:
+        case cllc_states.restored:
             /* Network is started */
             self.state = "started";
             break;

@@ -36,7 +36,7 @@ function IbmQuickstartAdapter(idNum) {
     }
     var payload = formatNwkMsg(nwkInfo);
     console.log(payload);
-    deviceClient.publish('nwkUpdate','json',payload);
+    deviceClient.publish('nwkInfo','json',payload);
   }
 
   IbmQuickstartAdapter.prototype.cloudAdapter_sendDeviceInfoMsg = function (devInfo, nwkExtAddr) {
@@ -45,7 +45,7 @@ function IbmQuickstartAdapter(idNum) {
     }
     var payload = {d:devInfo};
     console.log(payload);
-    deviceClient.publish('deviceUpdate','json',payload);
+    deviceClient.publish('deviceInfo','json',payload);
   }
 
   function connectToQuickstart(nwkInfo){

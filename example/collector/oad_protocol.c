@@ -5,7 +5,7 @@
  @brief Sub1G Over the Air Download Protocol Module
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -41,7 +41,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 
 /***** Includes *****/
@@ -191,7 +191,8 @@ OADProtocol_Status_t OADProtocol_sendImgIdentifyReq(void* pDstAddress, uint8_t i
 
     pOadImgIdentifyReqPacket[OADProtocol_PKT_CMDID_OFFSET] = OADProtocol_PACKET_TYPE_OAD_IMG_IDENTIFY_REQ;
     pOadImgIdentifyReqPacket[OADProtocol_IMG_IDENTIFY_REQ_IMG_ID_OFFSET] = imgId;
-    memcpy(&(pOadImgIdentifyReqPacket[OADProtocol_IMG_IDENTIFY_REQ_IMG_HDR_OFFSET]), pImgInfoData, 16);
+    //copy considering cc13x2 largeer header, cc13x0 will ignore unused bytes
+    memcpy(&(pOadImgIdentifyReqPacket[OADProtocol_IMG_IDENTIFY_REQ_IMG_HDR_OFFSET]), pImgInfoData, OADProtocol_AGAMA_IMAGE_HDR_LEN);
 
     if(OADProtocol_params.pRadioAccessFxns->pfnRadioAccessPacketSend)
     {

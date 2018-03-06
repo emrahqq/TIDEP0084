@@ -28,7 +28,7 @@
 // });
 
 var Webserver = require("./cloudWebServer/cloudWebServer.js");
-var Cloudclient = require("./cloudClient/cloudClient.js");
+var Cloudclient = require("./cloudClient/ibmCloudClient.js");
 
 function Gateway() {
 	var webserver = new Webserver();
@@ -41,16 +41,10 @@ function Gateway() {
 		cloudclient.appC_sendConfig(data);
 	});
 
-	/* rcvd send toggle req */
-	webserver.on('sendToggle', function (data) {
-		/* send toggle request */
-		cloudclient.appC_sendToggle(data);
-	});
-
-	/* rcvd getDevArray Req */
-	webserver.on('getDevArrayReq', function (data) {
-		/* process the request */
-		cloudclient.appC_getDeviceArray();
+	/* rcvd send actuation req */
+	webserver.on('deviceActuation', function (data) {
+		/* send actuation request */
+		cloudclient.appC_sendDeviceActuation(data);
 	});
 
 	/* rcvd getNwkInfoReq */
@@ -69,24 +63,14 @@ function Gateway() {
 		cloudclient.appC_setIBMCredentials(data);
 	});
 
-	/* send message to web-client */
-	cloudclient.on('permitJoinCnf', function (data) {
-		webserver.webserverSendToClient('permitJoinCnf', JSON.stringify(data));
-	});
-
 	/* send connected device info update to web-client */
 	cloudclient.on('connDevInfoUpdate', function (data) {
-		webserver.webserverSendToClient('connDevInfoUpdate', JSON.stringify(data));
+		webserver.webserverSendToClient('connDevInfoUpdate', data);
 	});
 
 	/* send nwkUpdate to web-client */
-	cloudclient.on('nwkUpdate', function (data) {
-		webserver.webserverSendToClient('nwkUpdate', JSON.stringify(data));
-	});
-
-	/* send device array to web-client */
-	cloudclient.on('getdevArrayRsp', function (data) {
-		webserver.webserverSendToClient('getdevArrayRsp', JSON.stringify(data));
+	cloudclient.on('nwkInfo', function (data) {
+		webserver.webserverSendToClient('nwkInfo', data);
 	});
 }
 

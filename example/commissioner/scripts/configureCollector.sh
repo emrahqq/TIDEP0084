@@ -2,7 +2,7 @@
 
 HERE=`pwd`
 
-CFG_DIR=${HERE}/../prebuilt
+CFG_DIR=${HERE}/../../prebuilt/bin
 
 sed -i -e "/config-channel-mask/ s/=.*/= ${1}/" ${CFG_DIR}/collector.cfg
 sed -i -e "/config-pan-id/ s/=.*/= ${2}/" ${CFG_DIR}/collector.cfg

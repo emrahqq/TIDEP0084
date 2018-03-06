@@ -5,7 +5,7 @@
  @brief Coordinator Logical Link Controller
 
  Group: WCS LPC
- $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+ $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 
  ******************************************************************************
  $License: BSD3 2016 $
@@ -41,7 +41,7 @@
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  $Release Name: TI-15.4Stack Linux x64 SDK$
- $Release Date: Jun 28, 2017 (2.02.00.03)$
+ $Release Date: Sept 27, 2017 (2.04.00.13)$
  *****************************************************************************/
 #ifndef CLLC_H
 #define CLLC_H
@@ -76,12 +76,6 @@ extern "C"
 
 /*! Association status */
 #define CLLC_ASSOC_STATUS_ALIVE 0x0001
-
-#if ((CONFIG_PHY_ID >= APIMAC_MRFSK_GENERIC_PHY_ID_BEGIN + 1) && (CONFIG_PHY_ID <= APIMAC_MRFSK_GENERIC_PHY_ID_END))
-#define LRM_MODE  1
-#else
-#define LRM_MODE  0
-#endif
 
 /*!
  Coordinator State Values

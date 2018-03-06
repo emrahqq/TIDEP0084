@@ -5,29 +5,29 @@
 # @brief TIMAC 2.0 run_collector.sh, used by run_demo.sh to launch collector
 #
 # Group: WCS LPC
-# $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350$
+# $Target Devices: Linux: AM335x, Embedded Devices: CC1310, CC1350, CC1352$
 #
 #############################################################
 # $License: BSD3 2016 $
-#
+#  
 #   Copyright (c) 2015, Texas Instruments Incorporated
 #   All rights reserved.
-#
+#  
 #   Redistribution and use in source and binary forms, with or without
 #   modification, are permitted provided that the following conditions
 #   are met:
-#
+#  
 #   *  Redistributions of source code must retain the above copyright
 #      notice, this list of conditions and the following disclaimer.
-#
+#  
 #   *  Redistributions in binary form must reproduce the above copyright
 #      notice, this list of conditions and the following disclaimer in the
 #      documentation and/or other materials provided with the distribution.
-#
+#  
 #   *  Neither the name of Texas Instruments Incorporated nor the names of
 #      its contributors may be used to endorse or promote products derived
 #      from this software without specific prior written permission.
-#
+#  
 #   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 #   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
 #   THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -41,22 +41,22 @@
 #   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #############################################################
 # $Release Name: TI-15.4Stack Linux x64 SDK$
-# $Release Date: Jun 28, 2017 (2.02.00.03)$
+# $Release Date: Sept 27, 2017 (2.04.00.13)$
 #############################################################
 
 # Because this is a "quick demo" we hard code
 # the device name in this check. For a production
 # application, a better check is suggested.
-#
+# 
 if [ ! -c /dev/ttyACM0 ]
 then
     echo ""
     echo "The Launchpad (/dev/ttyACM0) does not seem to be present"
     echo ""
-    exit 2
+    exit 1
 fi
 
-# This test is simple...
+# This test is simple... 
 arch=`uname -m`
 
 if [ "x${arch}x" == 'xx86_64x' ]
@@ -84,13 +84,13 @@ fi
 if [ "x${exe}x" == "xx" ]
 then
     echo "Cannot find Collector App exe: $exe"
-    exit 3
+    exit 1
 fi
 
 if [ ! -x $exe ]
 then
     echo "Cannot find EXE $exe"
-    exit 4
+    exit 1
 fi
 
 PID=`pidof $exe`
@@ -112,7 +112,7 @@ then
     exit 0
 else
     echo "Error starting collector application"
-    exit 5
+    exit 1
 fi
 
 

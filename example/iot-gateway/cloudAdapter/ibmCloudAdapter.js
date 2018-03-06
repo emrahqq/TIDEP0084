@@ -33,11 +33,6 @@ function IbmCloudAdapter() {
       console.log("NETWORK UPDATE!");
       var action = JSON.parse(payload);
       ibmCloudAdapterInstance.emit('updateNetworkState',action);
-      /*if (action.action == 1){
-        ibmCloudAdapterInstance.emit('updateNetworkState',{action: "open"});
-      } else {
-        ibmCloudAdapterInstance.emit('updateNetworkState',{action: "close"});
-      }*/
     }
     if (commandName === "deviceUpdate"){
       var action = JSON.parse(payload);
@@ -54,7 +49,7 @@ function IbmCloudAdapter() {
       return;
     }
 
-    gatewayClient.publishGatewayEvent('nwkUpdate','json',nwkInfo);
+    gatewayClient.publishGatewayEvent('networkInfo','json',nwkInfo);
   }
 
   IbmCloudAdapter.prototype.cloudAdapter_sendDeviceInfoMsg = function (devInfo, nwkExtAddr) {
@@ -62,7 +57,7 @@ function IbmCloudAdapter() {
       return;
     }
 
-    gatewayClient.publishGatewayEvent('deviceUpdate','json',devInfo);
+    gatewayClient.publishGatewayEvent('deviceInfo','json',devInfo);
   }
 }
 
